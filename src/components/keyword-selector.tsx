@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { FiCheck, FiLoader } from 'react-icons/fi';
+import { FiCheck, FiLoader, FiInfo } from 'react-icons/fi';
 
 export interface Keyword {
   keyword: string;
@@ -33,7 +33,7 @@ export default function KeywordSelector({
   return (
     <div className="bg-white rounded-lg shadow-md p-4 mb-6">
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-semibold text-gray-800">
+        <h2 className="text-xl font-semibold text-gray-900">
           Keywords for &quot;{topic}&quot;
         </h2>
         {isLoading && (
@@ -43,6 +43,16 @@ export default function KeywordSelector({
           </div>
         )}
       </div>
+
+      {!isLoading && topic && (
+        <div className="bg-blue-50 border-l-4 border-blue-400 p-3 mb-4 flex items-start">
+          <FiInfo className="text-blue-500 mt-0.5 mr-2 flex-shrink-0" />
+          <p className="text-sm text-gray-900">
+            Keywords are generated using AI and enriched with metrics from SimilarWeb when available. 
+            Metrics include monthly search volume, SEO difficulty (0-100), and estimated cost-per-click.
+          </p>
+        </div>
+      )}
 
       {keywords.length > 0 ? (
         <div className="space-y-2">
@@ -70,11 +80,12 @@ export default function KeywordSelector({
                       ? 'bg-blue-500 border-blue-500 text-white'
                       : 'border-gray-300'
                   }`}
+                  aria-label={keyword.selected ? 'Unselect keyword' : 'Select keyword'}
                 >
                   {keyword.selected && <FiCheck size={14} />}
                 </button>
               </div>
-              <div className="col-span-5 font-medium text-gray-900">
+              <div className="col-span-5 font-medium text-gray-900 truncate" title={keyword.keyword}>
                 {keyword.keyword}
               </div>
               <div className="col-span-2 text-center text-gray-900">
@@ -91,7 +102,9 @@ export default function KeywordSelector({
                   <span className="ml-2 text-sm text-gray-900">{keyword.difficulty}</span>
                 </div>
               </div>
-              <div className="col-span-2 text-center text-gray-900">${keyword.cpc.toFixed(2)}</div>
+              <div className="col-span-2 text-center text-gray-900">
+                ${typeof keyword.cpc === 'number' ? keyword.cpc.toFixed(2) : parseFloat(keyword.cpc).toFixed(2)}
+              </div>
             </div>
           ))}
         </div>
