@@ -103,6 +103,60 @@ function ensureValidContent(content: string): string {
   return content;
 }
 
+// Custom CSS for editor to ensure headings display properly
+const editorStyles = `
+  .ProseMirror h1 {
+    font-size: 2rem !important;
+    font-weight: 700 !important;
+    margin-top: 1.5rem !important;
+    margin-bottom: 1rem !important;
+    color: #111827 !important;
+  }
+  
+  .ProseMirror h2 {
+    font-size: 1.5rem !important;
+    font-weight: 600 !important;
+    margin-top: 1.25rem !important;
+    margin-bottom: 0.75rem !important;
+    color: #1f2937 !important;
+  }
+  
+  .ProseMirror h3 {
+    font-size: 1.25rem !important;
+    font-weight: 600 !important;
+    margin-top: 1rem !important;
+    margin-bottom: 0.5rem !important;
+    color: #374151 !important;
+  }
+  
+  .ProseMirror p {
+    margin-bottom: 0.75rem !important;
+  }
+
+  .debug-mode h1 {
+    border: 2px solid #ef4444 !important;
+    padding: 4px !important;
+    background: rgba(239, 68, 68, 0.1) !important;
+  }
+  
+  .debug-mode h2 {
+    border: 2px solid #3b82f6 !important;
+    padding: 4px !important;
+    background: rgba(59, 130, 246, 0.1) !important;
+  }
+  
+  .debug-mode h3 {
+    border: 2px solid #10b981 !important;
+    padding: 4px !important;
+    background: rgba(16, 185, 129, 0.1) !important;
+  }
+  
+  .debug-mode p {
+    border: 1px dashed #9ca3af !important;
+    padding: 2px !important;
+  }
+`;
+
 export default function ContentEditor({
   content,
   keywords,
@@ -112,6 +166,7 @@ export default function ContentEditor({
 }: ContentEditorProps) {
   const [highlightedContent, setHighlightedContent] = useState('');
   const [editorReady, setEditorReady] = useState(false);
+  const [debugMode, setDebugMode] = useState(false);
 
   // Highlight keywords in the content
   useEffect(() => {
@@ -175,7 +230,7 @@ export default function ContentEditor({
     },
     editorProps: {
       attributes: {
-        class: 'prose prose-lg max-w-none focus:outline-none prose-headings:font-semibold prose-h1:text-3xl prose-h2:text-2xl prose-h3:text-xl prose-h1:mb-4 prose-h2:mb-3 prose-h3:mb-2 prose-p:mb-2',
+        class: 'prose prose-lg max-w-none focus:outline-none',
       },
     },
     // Fix for SSR hydration issue
@@ -200,7 +255,9 @@ export default function ContentEditor({
   }, [editor, editorReady, highlightedContent]);
 
   // Add debug function to check headings
-  const debugHeadings = () => {
+  const toggleDebugMode = () => {
+    setDebugMode(prev => !prev);
+    
     if (editor) {
       console.log('Raw content:', content);
       console.log('Highlighted content:', highlightedContent);
@@ -219,6 +276,7 @@ export default function ContentEditor({
 
   return (
     <div className="bg-white rounded-lg shadow-md p-4 relative">
+      <style>{editorStyles}</style>
       <div className="border rounded-md p-4 min-h-[500px]">
         {isLoading ? (
           <div className="absolute inset-0 bg-white bg-opacity-80 flex items-center justify-center z-10">
@@ -230,14 +288,16 @@ export default function ContentEditor({
         ) : null}
         <MenuBar editor={editor} />
         <button 
-          onClick={debugHeadings} 
-          className="text-xs text-gray-400 mb-2 hover:text-gray-600"
+          onClick={toggleDebugMode} 
+          className={`text-xs mb-2 px-2 py-1 rounded ${
+            debugMode ? 'bg-blue-100 text-blue-800' : 'text-gray-400 hover:text-gray-600'
+          }`}
         >
-          Debug Headings
+          {debugMode ? 'Disable Debug Mode' : 'Debug Headings'}
         </button>
         <EditorContent 
           editor={editor} 
-          className="prose max-w-none text-gray-900" 
+          className={`prose max-w-none text-gray-900 ProseMirror ${debugMode ? 'debug-mode' : ''}`}
         />
       </div>
       <div className="mt-4 text-sm text-gray-900">
