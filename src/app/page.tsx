@@ -18,9 +18,8 @@ export default function Home() {
 
   const fetchKeywords = async (topic: string) => {
     setIsLoadingKeywords(true);
-    setIsEnrichingKeywords(true);
     try {
-      // First, get quick AI-generated keywords
+      // Get keywords from OpenAI
       const aiResponse = await fetch('/api/keywords/ai', {
         method: 'POST',
         headers: {
@@ -35,41 +34,105 @@ export default function Home() {
 
       const aiData = await aiResponse.json();
       
-      // Add selected property and loading state to each keyword
-      const keywordsWithSelection = aiData.keywords.map((keyword: any) => ({
+      // Add loading state to metrics only (not the entire keyword)
+      const keywordsWithLoadingMetrics = aiData.keywords.map((keyword: any) => ({
         ...keyword,
-        selected: true, // Default all keywords to selected
-        isLoading: true, // Mark as loading until enriched with real data
-        source: 'openai' // Initial source is OpenAI
+        selected: true,
+        metricsLoading: true, // Only metrics are loading
+        source: 'openai'
       }));
 
       // Set these initial keywords immediately
-      setKeywords(keywordsWithSelection);
+      setKeywords(keywordsWithLoadingMetrics);
       setTopic(topic);
       setIsLoadingKeywords(false);
       
-      // Then, fetch enriched keywords with SimilarWeb data
-      const enrichedResponse = await fetch('/api/keywords', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ topic }),
-      });
-
-      if (!enrichedResponse.ok) {
-        throw new Error('Failed to enrich keywords');
-      }
-
-      const enrichedData = await enrichedResponse.json();
+      // Start enriching keywords one by one
+      setIsEnrichingKeywords(true);
       
-      // Update keywords with enriched data
-      setKeywords(enrichedData.keywords);
+      // Enrich each keyword individually and update the state as each one completes
+      for (let i = 0; i < keywordsWithLoadingMetrics.length; i++) {
+        const keyword = keywordsWithLoadingMetrics[i];
+        try {
+          console.log(`Fetching SimilarWeb data for keyword: "${keyword.keyword}"`);
+          
+          // Fetch data for this specific keyword
+          const response = await fetch('/api/keywords/single', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ keyword: keyword.keyword }),
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            
+            if (data.metrics) {
+              console.log(`✅ Got SimilarWeb data for "${keyword.keyword}": volume=${data.metrics.volume}, difficulty=${data.metrics.difficulty}, cpc=${data.metrics.cpc}`);
+              
+              // Update just this keyword in the state
+              setKeywords(prevKeywords => {
+                const newKeywords = [...prevKeywords];
+                newKeywords[i] = {
+                  ...newKeywords[i],
+                  volume: data.metrics.volume || newKeywords[i].volume,
+                  difficulty: data.metrics.difficulty || newKeywords[i].difficulty,
+                  cpc: data.metrics.cpc || newKeywords[i].cpc,
+                  metricsLoading: false,
+                  source: 'similarweb'
+                };
+                return newKeywords;
+              });
+            } else {
+              console.log(`❌ No SimilarWeb data for "${keyword.keyword}", using OpenAI estimates`);
+              // Mark as loaded but keep OpenAI data
+              setKeywords(prevKeywords => {
+                const newKeywords = [...prevKeywords];
+                newKeywords[i] = {
+                  ...newKeywords[i],
+                  metricsLoading: false
+                };
+                return newKeywords;
+              });
+            }
+          } else {
+            // Mark as loaded but keep OpenAI data on error
+            setKeywords(prevKeywords => {
+              const newKeywords = [...prevKeywords];
+              newKeywords[i] = {
+                ...newKeywords[i],
+                metricsLoading: false
+              };
+              return newKeywords;
+            });
+          }
+          
+          // Small delay between requests to avoid rate limiting
+          await new Promise(resolve => setTimeout(resolve, 500));
+        } catch (error) {
+          console.error(`Error enriching keyword "${keyword.keyword}":`, error);
+          
+          // Mark as loaded but keep OpenAI data on error
+          setKeywords(prevKeywords => {
+            const newKeywords = [...prevKeywords];
+            newKeywords[i] = {
+              ...newKeywords[i],
+              metricsLoading: false
+            };
+            return newKeywords;
+          });
+          
+          // Still add a delay after an error
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
+      
+      setIsEnrichingKeywords(false);
     } catch (error) {
       console.error('Error fetching keywords:', error);
       alert('Failed to fetch keywords. Please try again.');
       setIsLoadingKeywords(false);
-    } finally {
       setIsEnrichingKeywords(false);
     }
   };

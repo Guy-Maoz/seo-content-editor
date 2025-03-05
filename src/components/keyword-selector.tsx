@@ -10,6 +10,7 @@ export interface Keyword {
   cpc: number;
   selected: boolean;
   isLoading?: boolean;
+  metricsLoading?: boolean;
   source?: string;
 }
 
@@ -34,28 +35,22 @@ export default function KeywordSelector({
     onKeywordsChange(updatedKeywords);
   };
 
-  // Skeleton loader for a keyword row
-  const KeywordSkeleton = () => (
-    <div className="grid grid-cols-12 items-center py-2 px-3 rounded-md bg-gray-50 animate-pulse">
-      <div className="col-span-1">
-        <div className="w-5 h-5 rounded bg-gray-200"></div>
-      </div>
-      <div className="col-span-5">
-        <div className="h-4 bg-gray-200 rounded w-3/4"></div>
-      </div>
+  // Skeleton loader for metrics
+  const MetricsSkeleton = () => (
+    <>
       <div className="col-span-2 text-center">
-        <div className="h-4 bg-gray-200 rounded w-1/2 mx-auto"></div>
+        <div className="h-4 bg-gray-200 rounded w-1/2 mx-auto animate-pulse"></div>
       </div>
       <div className="col-span-2 text-center">
         <div className="flex items-center justify-center">
-          <div className="w-full bg-gray-200 rounded-full h-1.5"></div>
-          <div className="ml-2 h-4 bg-gray-200 rounded w-6"></div>
+          <div className="w-full bg-gray-200 rounded-full h-1.5 animate-pulse"></div>
+          <div className="ml-2 h-4 bg-gray-200 rounded w-6 animate-pulse"></div>
         </div>
       </div>
       <div className="col-span-2 text-center">
-        <div className="h-4 bg-gray-200 rounded w-1/2 mx-auto"></div>
+        <div className="h-4 bg-gray-200 rounded w-1/2 mx-auto animate-pulse"></div>
       </div>
-    </div>
+    </>
   );
 
   return (
@@ -99,52 +94,55 @@ export default function KeywordSelector({
             <div className="col-span-2 text-center">CPC ($)</div>
           </div>
           {keywords.map((keyword, index) => (
-            keyword.isLoading ? (
-              <KeywordSkeleton key={`skeleton-${index}`} />
-            ) : (
-              <div
-                key={index}
-                className={`grid grid-cols-12 items-center py-2 px-3 rounded-md transition-colors ${
-                  keyword.selected
-                    ? 'bg-blue-50 border border-blue-100'
-                    : 'hover:bg-gray-50'
-                } ${keyword.source === 'similarweb' ? 'border-l-4 border-l-green-500' : ''}`}
-              >
-                <div className="col-span-1">
-                  <button
-                    onClick={() => toggleKeyword(index)}
-                    className={`w-5 h-5 rounded flex items-center justify-center border ${
-                      keyword.selected
-                        ? 'bg-blue-500 border-blue-500 text-white'
-                        : 'border-gray-300'
-                    }`}
-                    aria-label={keyword.selected ? 'Unselect keyword' : 'Select keyword'}
-                  >
-                    {keyword.selected && <FiCheck size={14} />}
-                  </button>
-                </div>
-                <div className="col-span-5 font-medium text-gray-900 truncate" title={keyword.keyword}>
-                  {keyword.keyword}
-                </div>
-                <div className="col-span-2 text-center text-gray-900">
-                  {keyword.volume.toLocaleString()}
-                </div>
-                <div className="col-span-2 text-center">
-                  <div className="flex items-center justify-center">
-                    <div className="w-full bg-gray-200 rounded-full h-1.5">
-                      <div
-                        className="bg-blue-600 h-1.5 rounded-full"
-                        style={{ width: `${keyword.difficulty}%` }}
-                      ></div>
-                    </div>
-                    <span className="ml-2 text-sm text-gray-900">{keyword.difficulty}</span>
-                  </div>
-                </div>
-                <div className="col-span-2 text-center text-gray-900">
-                  ${typeof keyword.cpc === 'number' ? keyword.cpc.toFixed(2) : parseFloat(keyword.cpc).toFixed(2)}
-                </div>
+            <div
+              key={index}
+              className={`grid grid-cols-12 items-center py-2 px-3 rounded-md transition-colors ${
+                keyword.selected
+                  ? 'bg-blue-50 border border-blue-100'
+                  : 'hover:bg-gray-50'
+              } ${keyword.source === 'similarweb' ? 'border-l-4 border-l-green-500' : ''}`}
+            >
+              <div className="col-span-1">
+                <button
+                  onClick={() => toggleKeyword(index)}
+                  className={`w-5 h-5 rounded flex items-center justify-center border ${
+                    keyword.selected
+                      ? 'bg-blue-500 border-blue-500 text-white'
+                      : 'border-gray-300'
+                  }`}
+                  aria-label={keyword.selected ? 'Unselect keyword' : 'Select keyword'}
+                >
+                  {keyword.selected && <FiCheck size={14} />}
+                </button>
               </div>
-            )
+              <div className="col-span-5 font-medium text-gray-900 truncate" title={keyword.keyword}>
+                {keyword.keyword}
+              </div>
+              
+              {keyword.metricsLoading ? (
+                <MetricsSkeleton />
+              ) : (
+                <>
+                  <div className="col-span-2 text-center text-gray-900">
+                    {keyword.volume.toLocaleString()}
+                  </div>
+                  <div className="col-span-2 text-center">
+                    <div className="flex items-center justify-center">
+                      <div className="w-full bg-gray-200 rounded-full h-1.5">
+                        <div
+                          className="bg-blue-600 h-1.5 rounded-full"
+                          style={{ width: `${keyword.difficulty}%` }}
+                        ></div>
+                      </div>
+                      <span className="ml-2 text-sm text-gray-900">{keyword.difficulty}</span>
+                    </div>
+                  </div>
+                  <div className="col-span-2 text-center text-gray-900">
+                    ${typeof keyword.cpc === 'number' ? keyword.cpc.toFixed(2) : parseFloat(keyword.cpc).toFixed(2)}
+                  </div>
+                </>
+              )}
+            </div>
           ))}
         </div>
       ) : !isLoading ? (
