@@ -20,23 +20,23 @@ export default function TopicInput({ onSubmit, isLoading }: TopicInputProps) {
 
   return (
     <div>
-      <form onSubmit={handleSubmit} className="flex gap-2">
+      <form onSubmit={handleSubmit} className="flex gap-3">
         <div className="relative flex-grow">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <FiSearch className="text-gray-600" />
+            <FiSearch className="text-gray-500" />
           </div>
           <input
             type="text"
             value={topic}
             onChange={(e) => setTopic(e.target.value)}
             placeholder="e.g., content marketing, SEO strategies"
-            className="block w-full pl-10 pr-3 py-2 border border-gray-400 rounded-md leading-5 bg-white text-gray-900 placeholder-gray-600 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:placeholder-gray-400 sm:text-sm"
+            className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-md leading-5 bg-white text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 focus:placeholder-gray-400 sm:text-base"
             disabled={isLoading}
           />
         </div>
         <button
           type="submit"
-          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed btn-primary"
+          className="inline-flex items-center justify-center px-6 py-3 text-base font-medium rounded-md text-white bg-blue-400 hover:bg-blue-500 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
           disabled={!topic.trim() || isLoading}
         >
           {isLoading ? 'Loading...' : 'Get Keywords'}

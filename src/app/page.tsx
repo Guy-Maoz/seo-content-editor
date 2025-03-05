@@ -227,7 +227,7 @@ export default function Home() {
             <div className="bg-white p-5 rounded-lg shadow-md h-full flex flex-col stats-card">
               {/* Topic Input */}
               <div className="mb-6">
-                <h3 className="text-lg font-medium text-gray-900 mb-3">Topic</h3>
+                <h3 className="text-2xl font-medium text-gray-900 mb-3">Topic</h3>
                 <TopicInput onSubmit={fetchKeywords} isLoading={isLoadingKeywords} />
               </div>
               

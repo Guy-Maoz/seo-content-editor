@@ -4,6 +4,8 @@
   --sw-blue: #4285f4;
   --sw-dark-blue: #1a73e8;
   --sw-light-blue: #e8f0fe;
+  --sw-button-blue: #8ab4f8;
+  --sw-button-hover: #7aa5f8;
   --sw-border: #e0e0e0;
   --sw-text-primary: #333333;
   --sw-text-secondary: #5f6368;
@@ -46,6 +48,12 @@ h1 {
   font-weight: 400;
 }
 
+h3 {
+  font-size: 1.5rem;
+  font-weight: 500;
+  color: #202124;
+}
+
 p, span, div {
   color: var(--sw-text-secondary);
 }
@@ -63,15 +71,19 @@ button,
 button.btn-primary,
 .btn-primary,
 button[type="submit"] {
-  background-color: var(--sw-blue);
+  background-color: var(--sw-button-blue);
   color: white;
   border: none;
+  padding: 12px 20px;
+  font-size: 16px;
+  border-radius: 4px;
+  font-weight: 500;
 }
 
 button.btn-primary:hover,
 .btn-primary:hover,
 button[type="submit"]:hover {
-  background-color: var(--sw-dark-blue);
+  background-color: var(--sw-button-hover);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
@@ -91,15 +103,32 @@ button.btn-secondary:hover,
 input, select, textarea {
   border: 1px solid var(--sw-border);
   border-radius: 4px;
-  padding: 8px 12px;
+  padding: 12px 16px 12px 40px;
   color: var(--sw-text-primary);
   transition: border-color 0.2s ease;
+  font-size: 16px;
+  line-height: 1.5;
+  height: 48px;
 }
 
 input:focus, select:focus, textarea:focus {
   border-color: var(--sw-blue);
   outline: none;
   box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.2);
+}
+
+/* Topic section specific */
+h3:has(+ form) {
+  font-size: 28px;
+  font-weight: 500;
+  color: #202124;
+  margin-bottom: 16px;
+}
+
+/* Search icon in input */
+.relative .absolute .text-gray-500 {
+  color: #5f6368;
+  font-size: 18px;
 }
 
 /* Table and grid styles */
