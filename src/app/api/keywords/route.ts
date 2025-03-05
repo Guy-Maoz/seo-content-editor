@@ -33,6 +33,7 @@ export async function POST(request: Request) {
 
     // Step 2: Try to enrich keywords with SimilarWeb metrics
     try {
+      console.log(`Enriching ${keywordsFromOpenAI.keywords.length} keywords with SimilarWeb data`);
       const enrichedKeywords = await enrichKeywordsWithSimilarWeb(keywordsFromOpenAI.keywords);
       return NextResponse.json({ keywords: enrichedKeywords });
     } catch (similarWebError) {
@@ -92,33 +93,52 @@ async function generateKeywordsWithOpenAI(topic: string) {
   return keywordsData;
 }
 
+// Helper function to delay execution (for rate limiting)
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 async function enrichKeywordsWithSimilarWeb(keywords: any[]) {
-  // Process keywords in parallel with Promise.all
-  const enrichedKeywordsPromises = keywords.map(async (keyword) => {
+  // Process keywords sequentially with a delay to avoid rate limiting
+  const enrichedKeywords = [];
+  
+  for (const keyword of keywords) {
     try {
+      console.log(`Fetching SimilarWeb data for keyword: "${keyword.keyword}"`);
       const metrics = await getKeywordMetricsFromSimilarWeb(keyword.keyword);
       
       // If we got metrics, update the keyword object
       if (metrics) {
-        return {
+        console.log(`✅ Got SimilarWeb data for "${keyword.keyword}": volume=${metrics.volume}, difficulty=${metrics.difficulty}, cpc=${metrics.cpc}`);
+        enrichedKeywords.push({
           ...keyword,
           volume: metrics.volume || keyword.volume,
           difficulty: metrics.difficulty || keyword.difficulty,
-          cpc: metrics.cpc || keyword.cpc
-        };
+          cpc: metrics.cpc || keyword.cpc,
+          source: 'similarweb' // Add a source flag to track where the data came from
+        });
+      } else {
+        console.log(`❌ No SimilarWeb data for "${keyword.keyword}", using OpenAI estimates`);
+        enrichedKeywords.push({
+          ...keyword,
+          source: 'openai' // Add a source flag to track where the data came from
+        });
       }
       
-      // If no metrics, return the original keyword
-      return keyword;
+      // Add a small delay between API calls to avoid rate limiting
+      await delay(500);
     } catch (error) {
       console.error(`Error enriching keyword "${keyword.keyword}":`, error);
       // If there's an error, return the original keyword
-      return keyword;
+      enrichedKeywords.push({
+        ...keyword,
+        source: 'openai_error' // Add a source flag to track where the data came from
+      });
+      
+      // Still add a delay even after an error
+      await delay(500);
     }
-  });
+  }
   
-  // Wait for all promises to resolve
-  return await Promise.all(enrichedKeywordsPromises);
+  return enrichedKeywords;
 }
 
 async function getKeywordMetricsFromSimilarWeb(keyword: string) {
@@ -132,6 +152,7 @@ async function getKeywordMetricsFromSimilarWeb(keyword: string) {
     const response = await fetch(url);
     
     if (!response.ok) {
+      console.log(`SimilarWeb API returned ${response.status} for "${keyword}"`);
       // If we get a 404 or other error, just return null instead of throwing
       return null;
     }
