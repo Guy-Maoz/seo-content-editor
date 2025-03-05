@@ -192,19 +192,19 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-[1600px] w-full mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header Section */}
-        <header className="text-center mb-12">
-          <h1 className="text-4xl font-extrabold text-gray-900 sm:text-5xl mb-4">
+        <header className="text-center mb-6">
+          <h1 className="text-4xl font-extrabold text-gray-900 sm:text-5xl mb-3">
             AI-Powered SEO Content Editor
           </h1>
-          <p className="text-xl text-gray-900 max-w-2xl mx-auto">
+          <p className="text-xl text-gray-900 max-w-3xl mx-auto">
             Create SEO-optimized content with AI assistance
           </p>
         </header>
 
         {/* Instructions Section */}
-        <section className="bg-blue-50 border-l-4 border-blue-400 p-6 mb-12 rounded-md">
+        <section className="bg-blue-50 border-l-4 border-blue-400 p-4 mb-6 rounded-md max-w-4xl mx-auto">
           <div className="flex">
             <div className="flex-shrink-0">
               <FiInfo className="h-6 w-6 text-blue-600" />
@@ -221,21 +221,18 @@ export default function Home() {
         </section>
 
         {/* Two-Column Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Left Column - Keywords Panel */}
-          <section className="space-y-8">
-            <div className="bg-white p-6 rounded-lg shadow-md">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">Keywords Panel</h2>
-              
-              {/* Keyword Generator */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-7 gap-6 lg:gap-8 lg:min-h-[800px]">
+          {/* Left Column - Keywords */}
+          <section className="lg:col-span-1 xl:col-span-2 flex flex-col">
+            <div className="bg-white p-5 rounded-lg shadow-md h-full flex flex-col">
+              {/* Topic Input */}
               <div className="mb-6">
-                <h3 className="text-lg font-medium text-gray-900 mb-3">Keyword Generator</h3>
+                <h3 className="text-lg font-medium text-gray-900 mb-3">Topic</h3>
                 <TopicInput onSubmit={fetchKeywords} isLoading={isLoadingKeywords} />
               </div>
               
-              {/* Keyword List */}
-              <div>
-                <h3 className="text-lg font-medium text-gray-900 mb-3">Keyword List</h3>
+              {/* Keywords */}
+              <div className="mt-6">
                 <KeywordSelector
                   topic={topic}
                   keywords={keywords}
@@ -247,14 +244,11 @@ export default function Home() {
             </div>
           </section>
 
-          {/* Right Column - Editor Panel */}
-          <section className="space-y-8">
-            <div className="bg-white p-6 rounded-lg shadow-md">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">Editor Panel</h2>
-              
-              {/* Generate Text */}
+          {/* Right Column - Editor */}
+          <section className="lg:col-span-2 xl:col-span-5 flex flex-col">
+            <div className="bg-white p-5 rounded-lg shadow-md h-full flex flex-col">
+              {/* Generate Button */}
               <div className="mb-6">
-                <h3 className="text-lg font-medium text-gray-900 mb-3">Generate Text</h3>
                 <GenerateButton
                   onGenerate={generateContent}
                   isGenerating={isGeneratingContent}
@@ -264,9 +258,8 @@ export default function Home() {
                 />
               </div>
               
-              {/* Text Editor */}
+              {/* Content Editor */}
               <div>
-                <h3 className="text-lg font-medium text-gray-900 mb-3">Text Editor</h3>
                 <ContentEditor
                   content={content}
                   keywords={keywords}

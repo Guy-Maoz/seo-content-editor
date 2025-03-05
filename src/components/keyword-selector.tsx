@@ -86,20 +86,13 @@ export default function KeywordSelector({
         </div>
       )}
 
-      {keywords.length > 0 ? (
-        <div>
-          <div className="grid grid-cols-12 text-xs font-medium text-gray-700 py-2 px-3 bg-gray-100">
-            <div className="col-span-1"></div>
-            <div className="col-span-5">Keyword</div>
-            <div className="col-span-2 text-center">Volume</div>
-            <div className="col-span-2 text-center">Difficulty</div>
-            <div className="col-span-2 text-center">CPC ($)</div>
-          </div>
-          <div className="max-h-[240px] overflow-y-auto">
+      {keywords.length > 0 && (
+        <div className="space-y-2 mt-2">
+          <div className="space-y-1">
             {keywords.map((keyword, index) => (
               <div
                 key={index}
-                className={`grid grid-cols-12 items-center py-2 px-3 text-xs border-t border-gray-200 transition-colors ${
+                className={`grid grid-cols-12 items-center py-2.5 px-3 text-xs border-t border-gray-200 transition-colors ${
                   keyword.selected
                     ? 'bg-blue-50 border-l-4 border-l-blue-500'
                     : 'hover:bg-gray-50 border-l-4 border-l-transparent'
@@ -149,11 +142,7 @@ export default function KeywordSelector({
             ))}
           </div>
         </div>
-      ) : !isLoading ? (
-        <div className="text-center py-4 text-sm text-gray-700 font-medium">
-          Enter a topic to get keyword suggestions
-        </div>
-      ) : null}
+      )}
     </div>
   );
 } 

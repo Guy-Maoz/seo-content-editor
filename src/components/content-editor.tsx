@@ -233,7 +233,7 @@ export default function ContentEditor({
   return (
     <div className="bg-white rounded-lg shadow-md p-4 relative">
       <style>{editorStyles}</style>
-      <div className="border border-gray-400 rounded-md p-4 min-h-[500px]">
+      <div className="border border-gray-400 rounded-md p-4 min-h-[650px]">
         {isLoading ? (
           <div className="absolute inset-0 bg-white bg-opacity-80 flex items-center justify-center z-10">
             <div className="flex flex-col items-center">
