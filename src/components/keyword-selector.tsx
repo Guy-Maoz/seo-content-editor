@@ -54,21 +54,21 @@ export default function KeywordSelector({
   );
 
   return (
-    <div className="border border-gray-200 rounded-md">
-      <div className="flex justify-between items-center px-3 py-2 border-b border-gray-200">
+    <div className="border border-gray-400 rounded-md overflow-hidden">
+      <div className="flex justify-between items-center px-3 py-2 border-b border-gray-300 bg-gray-50">
         {topic && (
           <div className="text-sm font-medium text-gray-700">
             Keywords for &quot;{topic}&quot;
           </div>
         )}
         {isLoading && (
-          <div className="flex items-center text-blue-500 text-sm">
+          <div className="flex items-center text-blue-600 text-sm font-medium">
             <FiLoader className="animate-spin mr-1" size={14} />
             <span>Loading...</span>
           </div>
         )}
         {!isLoading && isEnriching && (
-          <div className="flex items-center text-blue-500 text-sm">
+          <div className="flex items-center text-blue-600 text-sm font-medium">
             <FiLoader className="animate-spin mr-1" size={14} />
             <span>Enriching...</span>
           </div>
@@ -88,7 +88,7 @@ export default function KeywordSelector({
 
       {keywords.length > 0 ? (
         <div>
-          <div className="grid grid-cols-12 text-xs font-medium text-gray-700 py-1.5 px-3 bg-gray-50">
+          <div className="grid grid-cols-12 text-xs font-medium text-gray-700 py-2 px-3 bg-gray-100">
             <div className="col-span-1"></div>
             <div className="col-span-5">Keyword</div>
             <div className="col-span-2 text-center">Volume</div>
@@ -99,23 +99,23 @@ export default function KeywordSelector({
             {keywords.map((keyword, index) => (
               <div
                 key={index}
-                className={`grid grid-cols-12 items-center py-1.5 px-3 text-xs border-t border-gray-100 transition-colors ${
+                className={`grid grid-cols-12 items-center py-2 px-3 text-xs border-t border-gray-200 transition-colors ${
                   keyword.selected
-                    ? 'bg-blue-50'
-                    : 'hover:bg-gray-50'
-                } ${keyword.source === 'similarweb' ? 'border-l-2 border-l-green-500' : ''}`}
+                    ? 'bg-blue-50 border-l-4 border-l-blue-500'
+                    : 'hover:bg-gray-50 border-l-4 border-l-transparent'
+                } ${keyword.source === 'similarweb' ? 'border-r-4 border-r-green-500' : ''}`}
               >
                 <div className="col-span-1">
                   <button
                     onClick={() => toggleKeyword(index)}
-                    className={`w-4 h-4 rounded flex items-center justify-center border ${
+                    className={`w-5 h-5 rounded-sm flex items-center justify-center border ${
                       keyword.selected
                         ? 'bg-blue-500 border-blue-500 text-white'
-                        : 'border-gray-300'
+                        : 'border-gray-400 hover:border-gray-600'
                     }`}
                     aria-label={keyword.selected ? 'Unselect keyword' : 'Select keyword'}
                   >
-                    {keyword.selected && <FiCheck size={10} />}
+                    {keyword.selected && <FiCheck size={12} />}
                   </button>
                 </div>
                 <div className="col-span-5 font-medium text-gray-900 truncate" title={keyword.keyword}>
@@ -126,21 +126,21 @@ export default function KeywordSelector({
                   <MetricsSkeleton />
                 ) : (
                   <>
-                    <div className="col-span-2 text-center text-gray-900">
+                    <div className="col-span-2 text-center text-gray-900 font-medium">
                       {keyword.volume.toLocaleString()}
                     </div>
                     <div className="col-span-2 text-center">
                       <div className="flex items-center justify-center">
-                        <div className="w-full bg-gray-200 rounded-full h-1">
+                        <div className="w-full bg-gray-200 rounded-full h-1.5">
                           <div
-                            className="bg-blue-600 h-1 rounded-full"
+                            className="bg-blue-600 h-1.5 rounded-full"
                             style={{ width: `${keyword.difficulty}%` }}
                           ></div>
                         </div>
-                        <span className="ml-1 text-gray-900">{keyword.difficulty}</span>
+                        <span className="ml-1 text-gray-900 font-medium">{keyword.difficulty}</span>
                       </div>
                     </div>
-                    <div className="col-span-2 text-center text-gray-900">
+                    <div className="col-span-2 text-center text-gray-900 font-medium">
                       ${typeof keyword.cpc === 'number' ? keyword.cpc.toFixed(2) : parseFloat(keyword.cpc).toFixed(2)}
                     </div>
                   </>
@@ -150,7 +150,7 @@ export default function KeywordSelector({
           </div>
         </div>
       ) : !isLoading ? (
-        <div className="text-center py-4 text-sm text-gray-600">
+        <div className="text-center py-4 text-sm text-gray-700 font-medium">
           Enter a topic to get keyword suggestions
         </div>
       ) : null}
