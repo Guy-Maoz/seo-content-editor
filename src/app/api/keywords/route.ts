@@ -138,12 +138,12 @@ async function getKeywordMetricsFromSimilarWeb(keyword: string) {
     
     const data = await response.json();
     
-    // Extract and return the metrics
-    if (data && data.response) {
+    // Extract and return the metrics - updated to match the actual response format
+    if (data && data.data) {
       return {
-        volume: data.response.volume || 0,
-        difficulty: Math.round((data.response.organic_difficulty || 0) * 100),
-        cpc: data.response.cpc?.highest || data.response.cpc?.average || 0
+        volume: data.data.volume || 0,
+        difficulty: Math.round((data.data.organic_difficulty || 0) * 100) / 100,
+        cpc: data.data.cpc_range?.high_bid || data.data.cpc_range?.low_bid || 0
       };
     }
     
