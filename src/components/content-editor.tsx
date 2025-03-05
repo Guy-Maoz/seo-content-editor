@@ -5,15 +5,9 @@ import StarterKit from '@tiptap/starter-kit';
 import Highlight from '@tiptap/extension-highlight';
 import TextStyle from '@tiptap/extension-text-style';
 import Color from '@tiptap/extension-color';
-import TextAlign from '@tiptap/extension-text-align';
-import Link from '@tiptap/extension-link';
 import { useEffect, useState } from 'react';
 import { Keyword } from './keyword-selector';
-import { 
-  FiLoader, FiType, FiBold, FiItalic, FiList, 
-  FiAlignLeft, FiAlignCenter, FiAlignRight, 
-  FiLink, FiExternalLink, FiCode, FiCheckSquare
-} from 'react-icons/fi';
+import { FiLoader, FiType, FiBold, FiItalic } from 'react-icons/fi';
 
 interface ContentEditorProps {
   content: string;
@@ -69,7 +63,7 @@ const MenuBar = ({ editor }: { editor: any }) => {
         </button>
       </div>
 
-      <div className="flex items-center gap-1 border-r pr-2 mr-2">
+      <div className="flex items-center gap-1">
         <button
           onClick={() => editor.chain().focus().toggleBold().run()}
           className={`p-1.5 rounded hover:bg-gray-100 ${
@@ -87,91 +81,6 @@ const MenuBar = ({ editor }: { editor: any }) => {
           title="Italic"
         >
           <FiItalic size={18} />
-        </button>
-        <button
-          onClick={() => editor.chain().focus().toggleCode().run()}
-          className={`p-1.5 rounded hover:bg-gray-100 ${
-            editor.isActive('code') ? 'bg-blue-50 text-blue-600' : ''
-          }`}
-          title="Code"
-        >
-          <FiCode size={18} />
-        </button>
-      </div>
-
-      <div className="flex items-center gap-1 border-r pr-2 mr-2">
-        <button
-          onClick={() => editor.chain().focus().toggleBulletList().run()}
-          className={`p-1.5 rounded hover:bg-gray-100 ${
-            editor.isActive('bulletList') ? 'bg-blue-50 text-blue-600' : ''
-          }`}
-          title="Bullet List"
-        >
-          <FiList size={18} />
-        </button>
-        <button
-          onClick={() => editor.chain().focus().toggleOrderedList().run()}
-          className={`p-1.5 rounded hover:bg-gray-100 ${
-            editor.isActive('orderedList') ? 'bg-blue-50 text-blue-600' : ''
-          }`}
-          title="Numbered List"
-        >
-          <FiCheckSquare size={18} />
-        </button>
-      </div>
-
-      <div className="flex items-center gap-1 border-r pr-2 mr-2">
-        <button
-          onClick={() => editor.chain().focus().setTextAlign('left').run()}
-          className={`p-1.5 rounded hover:bg-gray-100 ${
-            editor.isActive({ textAlign: 'left' }) ? 'bg-blue-50 text-blue-600' : ''
-          }`}
-          title="Align Left"
-        >
-          <FiAlignLeft size={18} />
-        </button>
-        <button
-          onClick={() => editor.chain().focus().setTextAlign('center').run()}
-          className={`p-1.5 rounded hover:bg-gray-100 ${
-            editor.isActive({ textAlign: 'center' }) ? 'bg-blue-50 text-blue-600' : ''
-          }`}
-          title="Align Center"
-        >
-          <FiAlignCenter size={18} />
-        </button>
-        <button
-          onClick={() => editor.chain().focus().setTextAlign('right').run()}
-          className={`p-1.5 rounded hover:bg-gray-100 ${
-            editor.isActive({ textAlign: 'right' }) ? 'bg-blue-50 text-blue-600' : ''
-          }`}
-          title="Align Right"
-        >
-          <FiAlignRight size={18} />
-        </button>
-      </div>
-
-      <div className="flex items-center gap-1">
-        <button
-          onClick={() => {
-            const url = window.prompt('Enter URL');
-            if (url) {
-              editor.chain().focus().setLink({ href: url }).run();
-            }
-          }}
-          className={`p-1.5 rounded hover:bg-gray-100 ${
-            editor.isActive('link') ? 'bg-blue-50 text-blue-600' : ''
-          }`}
-          title="Add Link"
-        >
-          <FiLink size={18} />
-        </button>
-        <button
-          onClick={() => editor.chain().focus().unsetLink().run()}
-          className={`p-1.5 rounded hover:bg-gray-100`}
-          disabled={!editor.isActive('link')}
-          title="Remove Link"
-        >
-          <FiExternalLink size={18} />
         </button>
       </div>
     </div>
@@ -236,15 +145,6 @@ export default function ContentEditor({
       Highlight,
       TextStyle,
       Color,
-      TextAlign.configure({
-        types: ['heading', 'paragraph'],
-      }),
-      Link.configure({
-        openOnClick: false,
-        HTMLAttributes: {
-          class: 'text-blue-600 underline',
-        },
-      }),
     ],
     content: highlightedContent,
     onUpdate: ({ editor }) => {
@@ -252,10 +152,9 @@ export default function ContentEditor({
     },
     editorProps: {
       attributes: {
-        class: 'prose prose-lg max-w-none focus:outline-none prose-headings:font-semibold prose-h1:text-3xl prose-h2:text-2xl prose-h3:text-xl prose-h1:mb-4 prose-h2:mb-3 prose-h3:mb-2 prose-p:mb-2 prose-ul:mb-2 prose-ol:mb-2',
+        class: 'prose prose-lg max-w-none focus:outline-none prose-headings:font-semibold prose-h1:text-3xl prose-h2:text-2xl prose-h3:text-xl prose-h1:mb-4 prose-h2:mb-3 prose-h3:mb-2 prose-p:mb-2',
       },
     },
-    immediatelyRender: false,
   });
 
   useEffect(() => {
@@ -266,6 +165,16 @@ export default function ContentEditor({
       }
     }
   }, [editor, highlightedContent]);
+
+  // Add debug function to check headings
+  const debugHeadings = () => {
+    if (editor) {
+      console.log('Editor HTML:', editor.getHTML());
+      console.log('Is H1 active:', editor.isActive('heading', { level: 1 }));
+      console.log('Is H2 active:', editor.isActive('heading', { level: 2 }));
+      console.log('Is H3 active:', editor.isActive('heading', { level: 3 }));
+    }
+  };
 
   return (
     <div className="bg-white rounded-lg shadow-md p-4 relative">
@@ -279,6 +188,12 @@ export default function ContentEditor({
           </div>
         ) : null}
         <MenuBar editor={editor} />
+        <button 
+          onClick={debugHeadings} 
+          className="hidden"
+        >
+          Debug Headings
+        </button>
         <EditorContent editor={editor} className="prose max-w-none text-gray-900" />
       </div>
       <div className="mt-4 text-sm text-gray-900">

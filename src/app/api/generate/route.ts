@@ -40,14 +40,16 @@ export async function POST(request: Request) {
           - Written in a conversational tone
           - Optimized for SEO with proper keyword usage
           
-          IMPORTANT: Format the content with proper HTML tags:
-          - Use <h1> for the main title
-          - Use <h2> for major sections
-          - Use <h3> for subsections
+          IMPORTANT: Format the content with proper HTML tags following these strict rules:
+          - Use <h1> for the main title (only use ONE h1 tag)
+          - Use <h2> for major sections (2-4 sections)
+          - Use <h3> for subsections where needed
           - Use <p> for paragraphs
           - Use <strong> or <b> for emphasis and important points
-          - Use <ul> and <li> for lists
           - Use <em> or <i> for italicized text
+          
+          Make sure to use these HTML tags properly - they should be properly nested and closed.
+          The headings should have proper hierarchy (h1 -> h2 -> h3).
           
           Return ONLY the article content with HTML formatting, without any additional commentary.`
         }
