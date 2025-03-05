@@ -48,6 +48,9 @@ export async function POST(request: Request) {
           - Use <strong> or <b> for emphasis and important points
           - Use <em> or <i> for italicized text
           
+          DO NOT include <!DOCTYPE>, <html>, <head>, <body> or any other document structure tags.
+          Only provide the actual content with heading and paragraph tags.
+          
           Make sure to use these HTML tags properly - they should be properly nested and closed.
           The headings should have proper hierarchy (h1 -> h2 -> h3).
           
@@ -84,6 +87,14 @@ function cleanHtml(html: string) {
   // Remove any markdown backticks that might be included
   let cleaned = html.replace(/```html/g, '').replace(/```/g, '');
   
+  // Remove doctype, html, head, body tags if present
+  cleaned = cleaned.replace(/<!DOCTYPE[^>]*>/i, '');
+  cleaned = cleaned.replace(/<html[^>]*>|<\/html>/gi, '');
+  cleaned = cleaned.replace(/<head>[\s\S]*?<\/head>/gi, '');
+  cleaned = cleaned.replace(/<body[^>]*>|<\/body>/gi, '');
+  cleaned = cleaned.replace(/<meta[^>]*>/gi, '');
+  cleaned = cleaned.replace(/<title>.*?<\/title>/gi, '');
+  
   // Ensure there's only one h1 tag
   const h1Count = (cleaned.match(/<h1/g) || []).length;
   if (h1Count > 1) {
@@ -95,6 +106,12 @@ function cleanHtml(html: string) {
       return index === cleaned.lastIndexOf('</h1>') ? match : '</h2>';
     });
   }
+  
+  // Trim whitespace
+  cleaned = cleaned.trim();
+  
+  // Log the cleaned content for debugging
+  console.log('Cleaned HTML content:', cleaned.substring(0, 200) + '...');
   
   return cleaned;
 } 

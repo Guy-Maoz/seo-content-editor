@@ -1,6 +1,6 @@
 'use client';
 
-import { useEditor, EditorContent } from '@tiptap/react';
+import { useEditor, EditorContent, Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Highlight from '@tiptap/extension-highlight';
 import TextStyle from '@tiptap/extension-text-style';
@@ -17,7 +17,7 @@ interface ContentEditorProps {
   isLoading: boolean;
 }
 
-const MenuBar = ({ editor }: { editor: any }) => {
+const MenuBar = ({ editor }: { editor: Editor | null }) => {
   if (!editor) {
     return null;
   }
@@ -87,6 +87,22 @@ const MenuBar = ({ editor }: { editor: any }) => {
   );
 };
 
+// Helper function to check and fix HTML content
+function ensureValidContent(content: string): string {
+  // If content is empty, return an empty string
+  if (!content) return '';
+  
+  // Check if content has heading tags but they're not being rendered properly
+  const hasH1 = content.includes('<h1>') || content.includes('<h1 ');
+  const hasH2 = content.includes('<h2>') || content.includes('<h2 ');
+  const hasH3 = content.includes('<h3>') || content.includes('<h3 ');
+  
+  console.log('Content analysis:', { hasH1, hasH2, hasH3, length: content.length });
+  
+  // Return the content as is
+  return content;
+}
+
 export default function ContentEditor({
   content,
   keywords,
@@ -94,13 +110,20 @@ export default function ContentEditor({
   onKeywordRemoved,
   isLoading,
 }: ContentEditorProps) {
-  const [highlightedContent, setHighlightedContent] = useState(content);
+  const [highlightedContent, setHighlightedContent] = useState('');
+  const [editorReady, setEditorReady] = useState(false);
 
   // Highlight keywords in the content
   useEffect(() => {
-    if (!content) return;
+    if (!content) {
+      setHighlightedContent('');
+      return;
+    }
 
-    let processedContent = content;
+    // First ensure the content is valid
+    const validContent = ensureValidContent(content);
+    
+    let processedContent = validContent;
     const selectedKeywords = keywords.filter(k => k.selected).map(k => k.keyword);
 
     // Sort keywords by length (longest first) to avoid partial matches
@@ -146,7 +169,7 @@ export default function ContentEditor({
       TextStyle,
       Color,
     ],
-    content: highlightedContent,
+    content: '',
     onUpdate: ({ editor }) => {
       onContentChange(editor.getHTML());
     },
@@ -155,24 +178,42 @@ export default function ContentEditor({
         class: 'prose prose-lg max-w-none focus:outline-none prose-headings:font-semibold prose-h1:text-3xl prose-h2:text-2xl prose-h3:text-xl prose-h1:mb-4 prose-h2:mb-3 prose-h3:mb-2 prose-p:mb-2',
       },
     },
+    // Fix for SSR hydration issue
+    immediatelyRender: false,
+    parseOptions: {
+      preserveWhitespace: 'full',
+    },
   });
 
+  // Set editor ready state once editor is available
   useEffect(() => {
-    if (editor && highlightedContent) {
-      // Only update if the content has changed
-      if (editor.getHTML() !== highlightedContent) {
-        editor.commands.setContent(highlightedContent);
-      }
+    if (editor) {
+      setEditorReady(true);
     }
-  }, [editor, highlightedContent]);
+  }, [editor]);
+
+  // Update content when editor is ready and content changes
+  useEffect(() => {
+    if (editor && editorReady && highlightedContent) {
+      editor.commands.setContent(highlightedContent, false);
+    }
+  }, [editor, editorReady, highlightedContent]);
 
   // Add debug function to check headings
   const debugHeadings = () => {
     if (editor) {
+      console.log('Raw content:', content);
+      console.log('Highlighted content:', highlightedContent);
       console.log('Editor HTML:', editor.getHTML());
       console.log('Is H1 active:', editor.isActive('heading', { level: 1 }));
       console.log('Is H2 active:', editor.isActive('heading', { level: 2 }));
       console.log('Is H3 active:', editor.isActive('heading', { level: 3 }));
+      
+      // Check for HTML structure issues
+      const editorContent = editor.getHTML();
+      console.log('H1 tags:', (editorContent.match(/<h1/g) || []).length);
+      console.log('H2 tags:', (editorContent.match(/<h2/g) || []).length);
+      console.log('H3 tags:', (editorContent.match(/<h3/g) || []).length);
     }
   };
 
@@ -190,11 +231,14 @@ export default function ContentEditor({
         <MenuBar editor={editor} />
         <button 
           onClick={debugHeadings} 
-          className="hidden"
+          className="text-xs text-gray-400 mb-2 hover:text-gray-600"
         >
           Debug Headings
         </button>
-        <EditorContent editor={editor} className="prose max-w-none text-gray-900" />
+        <EditorContent 
+          editor={editor} 
+          className="prose max-w-none text-gray-900" 
+        />
       </div>
       <div className="mt-4 text-sm text-gray-900">
         <p>
