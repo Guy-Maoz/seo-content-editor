@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import TopicInput from '@/components/topic-input';
 import KeywordSelector, { Keyword } from '@/components/keyword-selector';
 import GenerateButton from '@/components/generate-button';
@@ -12,13 +12,16 @@ export default function Home() {
   const [keywords, setKeywords] = useState<Keyword[]>([]);
   const [content, setContent] = useState('');
   const [isLoadingKeywords, setIsLoadingKeywords] = useState(false);
+  const [isEnrichingKeywords, setIsEnrichingKeywords] = useState(false);
   const [isGeneratingContent, setIsGeneratingContent] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
 
   const fetchKeywords = async (topic: string) => {
     setIsLoadingKeywords(true);
+    setIsEnrichingKeywords(true);
     try {
-      const response = await fetch('/api/keywords', {
+      // First, get quick AI-generated keywords
+      const aiResponse = await fetch('/api/keywords/ai', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -26,25 +29,48 @@ export default function Home() {
         body: JSON.stringify({ topic }),
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to fetch keywords');
+      if (!aiResponse.ok) {
+        throw new Error('Failed to fetch AI keywords');
       }
 
-      const data = await response.json();
+      const aiData = await aiResponse.json();
       
-      // Add selected property to each keyword
-      const keywordsWithSelection = data.keywords.map((keyword: any) => ({
+      // Add selected property and loading state to each keyword
+      const keywordsWithSelection = aiData.keywords.map((keyword: any) => ({
         ...keyword,
         selected: true, // Default all keywords to selected
+        isLoading: true, // Mark as loading until enriched with real data
+        source: 'openai' // Initial source is OpenAI
       }));
 
+      // Set these initial keywords immediately
       setKeywords(keywordsWithSelection);
       setTopic(topic);
+      setIsLoadingKeywords(false);
+      
+      // Then, fetch enriched keywords with SimilarWeb data
+      const enrichedResponse = await fetch('/api/keywords', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ topic }),
+      });
+
+      if (!enrichedResponse.ok) {
+        throw new Error('Failed to enrich keywords');
+      }
+
+      const enrichedData = await enrichedResponse.json();
+      
+      // Update keywords with enriched data
+      setKeywords(enrichedData.keywords);
     } catch (error) {
       console.error('Error fetching keywords:', error);
       alert('Failed to fetch keywords. Please try again.');
-    } finally {
       setIsLoadingKeywords(false);
+    } finally {
+      setIsEnrichingKeywords(false);
     }
   };
 
@@ -161,6 +187,7 @@ export default function Home() {
                 keywords={keywords}
                 onKeywordsChange={handleKeywordsChange}
                 isLoading={isLoadingKeywords}
+                isEnriching={isEnrichingKeywords}
               />
             </div>
 
