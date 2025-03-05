@@ -20,7 +20,7 @@ export default function GenerateButton({
   const isDisabled = isGenerating || !hasSelectedKeywords || !hasTopic;
 
   return (
-    <div className="bg-white rounded-lg shadow-md p-4 mb-6">
+    <div>
       <button
         onClick={onGenerate}
         disabled={isDisabled}

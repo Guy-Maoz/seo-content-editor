@@ -220,49 +220,61 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Main Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Left Column - Controls */}
-          <section className="lg:col-span-1 space-y-8">
-            <div>
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">1. Topic Selection</h2>
-              <TopicInput onSubmit={fetchKeywords} isLoading={isLoadingKeywords} />
-            </div>
-            
-            <div>
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">3. Content Generation</h2>
-              <GenerateButton
-                onGenerate={generateContent}
-                isGenerating={isGeneratingContent}
-                isRegenerating={isRegenerating}
-                hasSelectedKeywords={keywords.some(k => k.selected)}
-                hasTopic={!!topic}
-              />
+        {/* Two-Column Layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Left Column - Keywords Panel */}
+          <section className="space-y-8">
+            <div className="bg-white p-6 rounded-lg shadow-md">
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">Keywords Panel</h2>
+              
+              {/* Keyword Generator */}
+              <div className="mb-6">
+                <h3 className="text-lg font-medium text-gray-900 mb-3">Keyword Generator</h3>
+                <TopicInput onSubmit={fetchKeywords} isLoading={isLoadingKeywords} />
+              </div>
+              
+              {/* Keyword List */}
+              <div>
+                <h3 className="text-lg font-medium text-gray-900 mb-3">Keyword List</h3>
+                <KeywordSelector
+                  topic={topic}
+                  keywords={keywords}
+                  onKeywordsChange={handleKeywordsChange}
+                  isLoading={isLoadingKeywords}
+                  isEnriching={isEnrichingKeywords}
+                />
+              </div>
             </div>
           </section>
 
-          {/* Right Column - Editor */}
-          <section className="lg:col-span-2 space-y-8">
-            <div>
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">2. Keyword Selection</h2>
-              <KeywordSelector
-                topic={topic}
-                keywords={keywords}
-                onKeywordsChange={handleKeywordsChange}
-                isLoading={isLoadingKeywords}
-                isEnriching={isEnrichingKeywords}
-              />
-            </div>
-
-            <div>
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">4. Content Editor</h2>
-              <ContentEditor
-                content={content}
-                keywords={keywords}
-                onContentChange={handleContentChange}
-                onKeywordRemoved={handleKeywordRemoved}
-                isLoading={isGeneratingContent}
-              />
+          {/* Right Column - Editor Panel */}
+          <section className="space-y-8">
+            <div className="bg-white p-6 rounded-lg shadow-md">
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">Editor Panel</h2>
+              
+              {/* Generate Text */}
+              <div className="mb-6">
+                <h3 className="text-lg font-medium text-gray-900 mb-3">Generate Text</h3>
+                <GenerateButton
+                  onGenerate={generateContent}
+                  isGenerating={isGeneratingContent}
+                  isRegenerating={isRegenerating}
+                  hasSelectedKeywords={keywords.some(k => k.selected)}
+                  hasTopic={!!topic}
+                />
+              </div>
+              
+              {/* Text Editor */}
+              <div>
+                <h3 className="text-lg font-medium text-gray-900 mb-3">Text Editor</h3>
+                <ContentEditor
+                  content={content}
+                  keywords={keywords}
+                  onContentChange={handleContentChange}
+                  onKeywordRemoved={handleKeywordRemoved}
+                  isLoading={isGeneratingContent}
+                />
+              </div>
             </div>
           </section>
         </div>

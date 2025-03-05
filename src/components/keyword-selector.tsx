@@ -54,99 +54,103 @@ export default function KeywordSelector({
   );
 
   return (
-    <div className="bg-white rounded-lg shadow-md p-4 mb-6">
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-semibold text-gray-900">
-          Keywords for &quot;{topic}&quot;
-        </h2>
+    <div className="border border-gray-200 rounded-md">
+      <div className="flex justify-between items-center px-3 py-2 border-b border-gray-200">
+        {topic && (
+          <div className="text-sm font-medium text-gray-700">
+            Keywords for &quot;{topic}&quot;
+          </div>
+        )}
         {isLoading && (
-          <div className="flex items-center text-blue-500">
-            <FiLoader className="animate-spin mr-2" />
-            <span>Loading keywords...</span>
+          <div className="flex items-center text-blue-500 text-sm">
+            <FiLoader className="animate-spin mr-1" size={14} />
+            <span>Loading...</span>
           </div>
         )}
         {!isLoading && isEnriching && (
-          <div className="flex items-center text-blue-500">
-            <FiLoader className="animate-spin mr-2" />
-            <span>Enriching with real data...</span>
+          <div className="flex items-center text-blue-500 text-sm">
+            <FiLoader className="animate-spin mr-1" size={14} />
+            <span>Enriching...</span>
           </div>
         )}
       </div>
 
-      {!isLoading && topic && (
-        <div className="bg-blue-50 border-l-4 border-blue-400 p-3 mb-4 flex items-start">
-          <FiInfo className="text-blue-500 mt-0.5 mr-2 flex-shrink-0" />
-          <p className="text-sm text-gray-900">
-            Keywords are generated using AI and enriched with metrics from SimilarWeb when available. 
-            Metrics include monthly search volume, SEO difficulty (0-100), and estimated cost-per-click.
-            {isEnriching && " Keywords are being enriched with real data..."}
-          </p>
+      {!isLoading && topic && !isEnriching && (
+        <div className="bg-blue-50 border-l-4 border-blue-400 p-2 text-xs text-gray-900">
+          <div className="flex items-start">
+            <FiInfo className="text-blue-500 mt-0.5 mr-1 flex-shrink-0" size={12} />
+            <p>
+              Keywords include monthly search volume, SEO difficulty (0-100), and cost-per-click.
+            </p>
+          </div>
         </div>
       )}
 
       {keywords.length > 0 ? (
-        <div className="space-y-2">
-          <div className="grid grid-cols-12 text-sm font-medium text-gray-900 border-b pb-2 mb-2">
+        <div>
+          <div className="grid grid-cols-12 text-xs font-medium text-gray-700 py-1.5 px-3 bg-gray-50">
             <div className="col-span-1"></div>
             <div className="col-span-5">Keyword</div>
             <div className="col-span-2 text-center">Volume</div>
             <div className="col-span-2 text-center">Difficulty</div>
             <div className="col-span-2 text-center">CPC ($)</div>
           </div>
-          {keywords.map((keyword, index) => (
-            <div
-              key={index}
-              className={`grid grid-cols-12 items-center py-2 px-3 rounded-md transition-colors ${
-                keyword.selected
-                  ? 'bg-blue-50 border border-blue-100'
-                  : 'hover:bg-gray-50'
-              } ${keyword.source === 'similarweb' ? 'border-l-4 border-l-green-500' : ''}`}
-            >
-              <div className="col-span-1">
-                <button
-                  onClick={() => toggleKeyword(index)}
-                  className={`w-5 h-5 rounded flex items-center justify-center border ${
-                    keyword.selected
-                      ? 'bg-blue-500 border-blue-500 text-white'
-                      : 'border-gray-300'
-                  }`}
-                  aria-label={keyword.selected ? 'Unselect keyword' : 'Select keyword'}
-                >
-                  {keyword.selected && <FiCheck size={14} />}
-                </button>
-              </div>
-              <div className="col-span-5 font-medium text-gray-900 truncate" title={keyword.keyword}>
-                {keyword.keyword}
-              </div>
-              
-              {keyword.metricsLoading ? (
-                <MetricsSkeleton />
-              ) : (
-                <>
-                  <div className="col-span-2 text-center text-gray-900">
-                    {keyword.volume.toLocaleString()}
-                  </div>
-                  <div className="col-span-2 text-center">
-                    <div className="flex items-center justify-center">
-                      <div className="w-full bg-gray-200 rounded-full h-1.5">
-                        <div
-                          className="bg-blue-600 h-1.5 rounded-full"
-                          style={{ width: `${keyword.difficulty}%` }}
-                        ></div>
-                      </div>
-                      <span className="ml-2 text-sm text-gray-900">{keyword.difficulty}</span>
+          <div className="max-h-[240px] overflow-y-auto">
+            {keywords.map((keyword, index) => (
+              <div
+                key={index}
+                className={`grid grid-cols-12 items-center py-1.5 px-3 text-xs border-t border-gray-100 transition-colors ${
+                  keyword.selected
+                    ? 'bg-blue-50'
+                    : 'hover:bg-gray-50'
+                } ${keyword.source === 'similarweb' ? 'border-l-2 border-l-green-500' : ''}`}
+              >
+                <div className="col-span-1">
+                  <button
+                    onClick={() => toggleKeyword(index)}
+                    className={`w-4 h-4 rounded flex items-center justify-center border ${
+                      keyword.selected
+                        ? 'bg-blue-500 border-blue-500 text-white'
+                        : 'border-gray-300'
+                    }`}
+                    aria-label={keyword.selected ? 'Unselect keyword' : 'Select keyword'}
+                  >
+                    {keyword.selected && <FiCheck size={10} />}
+                  </button>
+                </div>
+                <div className="col-span-5 font-medium text-gray-900 truncate" title={keyword.keyword}>
+                  {keyword.keyword}
+                </div>
+                
+                {keyword.metricsLoading ? (
+                  <MetricsSkeleton />
+                ) : (
+                  <>
+                    <div className="col-span-2 text-center text-gray-900">
+                      {keyword.volume.toLocaleString()}
                     </div>
-                  </div>
-                  <div className="col-span-2 text-center text-gray-900">
-                    ${typeof keyword.cpc === 'number' ? keyword.cpc.toFixed(2) : parseFloat(keyword.cpc).toFixed(2)}
-                  </div>
-                </>
-              )}
-            </div>
-          ))}
+                    <div className="col-span-2 text-center">
+                      <div className="flex items-center justify-center">
+                        <div className="w-full bg-gray-200 rounded-full h-1">
+                          <div
+                            className="bg-blue-600 h-1 rounded-full"
+                            style={{ width: `${keyword.difficulty}%` }}
+                          ></div>
+                        </div>
+                        <span className="ml-1 text-gray-900">{keyword.difficulty}</span>
+                      </div>
+                    </div>
+                    <div className="col-span-2 text-center text-gray-900">
+                      ${typeof keyword.cpc === 'number' ? keyword.cpc.toFixed(2) : parseFloat(keyword.cpc).toFixed(2)}
+                    </div>
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       ) : !isLoading ? (
-        <div className="text-center py-6 text-gray-900">
+        <div className="text-center py-4 text-sm text-gray-600">
           Enter a topic to get keyword suggestions
         </div>
       ) : null}
