@@ -207,7 +207,7 @@ export default function Home() {
         <section className="bg-blue-50 border-l-4 border-blue-400 p-4 mb-6 rounded-md max-w-4xl mx-auto">
           <div className="flex">
             <div className="flex-shrink-0">
-              <FiInfo className="h-6 w-6 text-blue-600" />
+              <FiInfo className="h-6 w-6 text-blue-600 sidebar-icon" />
             </div>
             <div className="ml-4">
               <h2 className="text-lg font-semibold text-gray-900 mb-2">How it works</h2>
@@ -224,7 +224,7 @@ export default function Home() {
         <div className="grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-7 gap-6 lg:gap-8 lg:min-h-[800px]">
           {/* Left Column - Keywords */}
           <section className="lg:col-span-1 xl:col-span-2 flex flex-col">
-            <div className="bg-white p-5 rounded-lg shadow-md h-full flex flex-col">
+            <div className="bg-white p-5 rounded-lg shadow-md h-full flex flex-col stats-card">
               {/* Topic Input */}
               <div className="mb-6">
                 <h3 className="text-lg font-medium text-gray-900 mb-3">Topic</h3>
@@ -232,7 +232,7 @@ export default function Home() {
               </div>
               
               {/* Keywords */}
-              <div className="mt-6">
+              <div className="mt-6 flex-grow">
                 <KeywordSelector
                   topic={topic}
                   keywords={keywords}
@@ -246,7 +246,7 @@ export default function Home() {
 
           {/* Right Column - Editor */}
           <section className="lg:col-span-2 xl:col-span-5 flex flex-col">
-            <div className="bg-white p-5 rounded-lg shadow-md h-full flex flex-col">
+            <div className="bg-white p-5 rounded-lg shadow-md h-full flex flex-col stats-card">
               {/* Generate Button */}
               <div className="mb-6">
                 <GenerateButton
@@ -259,7 +259,7 @@ export default function Home() {
               </div>
               
               {/* Content Editor */}
-              <div>
+              <div className="flex-grow">
                 <ContentEditor
                   content={content}
                   keywords={keywords}

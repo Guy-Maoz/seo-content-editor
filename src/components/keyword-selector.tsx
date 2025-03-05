@@ -63,13 +63,13 @@ export default function KeywordSelector({
         )}
         {isLoading && (
           <div className="flex items-center text-blue-600 text-sm font-medium">
-            <FiLoader className="animate-spin mr-1" size={14} />
+            <FiLoader className="animate-spin mr-1 loading-spinner" size={14} />
             <span>Loading...</span>
           </div>
         )}
         {!isLoading && isEnriching && (
           <div className="flex items-center text-blue-600 text-sm font-medium">
-            <FiLoader className="animate-spin mr-1" size={14} />
+            <FiLoader className="animate-spin mr-1 loading-spinner" size={14} />
             <span>Enriching...</span>
           </div>
         )}
@@ -92,10 +92,10 @@ export default function KeywordSelector({
             {keywords.map((keyword, index) => (
               <div
                 key={index}
-                className={`grid grid-cols-12 items-center py-2.5 px-3 text-xs border-t border-gray-200 transition-colors ${
+                className={`grid grid-cols-12 items-center py-2.5 px-3 text-xs border-t border-gray-200 transition-colors keyword-item ${
                   keyword.selected
-                    ? 'bg-blue-50 border-l-4 border-l-blue-500'
-                    : 'hover:bg-gray-50 border-l-4 border-l-transparent'
+                    ? 'selected'
+                    : ''
                 } ${keyword.source === 'similarweb' ? 'border-r-4 border-r-green-500' : ''}`}
               >
                 <div className="col-span-1">
@@ -119,14 +119,14 @@ export default function KeywordSelector({
                   <MetricsSkeleton />
                 ) : (
                   <>
-                    <div className="col-span-2 text-center text-gray-900 font-medium">
+                    <div className="col-span-2 text-center text-gray-900 font-medium keyword-volume">
                       {keyword.volume.toLocaleString()}
                     </div>
                     <div className="col-span-2 text-center">
                       <div className="flex items-center justify-center">
-                        <div className="w-full bg-gray-200 rounded-full h-1.5">
+                        <div className="w-full difficulty-bar">
                           <div
-                            className="bg-blue-600 h-1.5 rounded-full"
+                            className="difficulty-indicator"
                             style={{ width: `${keyword.difficulty}%` }}
                           ></div>
                         </div>

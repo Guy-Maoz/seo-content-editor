@@ -23,12 +23,12 @@ const MenuBar = ({ editor }: { editor: Editor | null }) => {
   }
 
   return (
-    <div className="border-b border-gray-300 pb-3 mb-3 flex flex-wrap gap-2">
+    <div className="border-b border-gray-300 pb-3 mb-3 flex flex-wrap gap-2 menu-bar">
       <div className="flex items-center gap-1 border-r border-gray-300 pr-2 mr-2">
         <button
           onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
           className={`p-1.5 rounded hover:bg-gray-100 ${
-            editor.isActive('heading', { level: 1 }) ? 'bg-blue-100 text-blue-700 border border-blue-300' : 'border border-gray-300 text-gray-700'
+            editor.isActive('heading', { level: 1 }) ? 'active' : 'border border-gray-300 text-gray-700'
           }`}
           title="Heading 1"
         >
@@ -37,7 +37,7 @@ const MenuBar = ({ editor }: { editor: Editor | null }) => {
         <button
           onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
           className={`p-1.5 rounded hover:bg-gray-100 ${
-            editor.isActive('heading', { level: 2 }) ? 'bg-blue-100 text-blue-700 border border-blue-300' : 'border border-gray-300 text-gray-700'
+            editor.isActive('heading', { level: 2 }) ? 'active' : 'border border-gray-300 text-gray-700'
           }`}
           title="Heading 2"
         >
@@ -46,7 +46,7 @@ const MenuBar = ({ editor }: { editor: Editor | null }) => {
         <button
           onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
           className={`p-1.5 rounded hover:bg-gray-100 ${
-            editor.isActive('heading', { level: 3 }) ? 'bg-blue-100 text-blue-700 border border-blue-300' : 'border border-gray-300 text-gray-700'
+            editor.isActive('heading', { level: 3 }) ? 'active' : 'border border-gray-300 text-gray-700'
           }`}
           title="Heading 3"
         >
@@ -55,7 +55,7 @@ const MenuBar = ({ editor }: { editor: Editor | null }) => {
         <button
           onClick={() => editor.chain().focus().setParagraph().run()}
           className={`p-1.5 rounded hover:bg-gray-100 ${
-            editor.isActive('paragraph') ? 'bg-blue-100 text-blue-700 border border-blue-300' : 'border border-gray-300 text-gray-700'
+            editor.isActive('paragraph') ? 'active' : 'border border-gray-300 text-gray-700'
           }`}
           title="Paragraph"
         >
@@ -67,7 +67,7 @@ const MenuBar = ({ editor }: { editor: Editor | null }) => {
         <button
           onClick={() => editor.chain().focus().toggleBold().run()}
           className={`p-1.5 rounded hover:bg-gray-100 ${
-            editor.isActive('bold') ? 'bg-blue-100 text-blue-700 border border-blue-300' : 'border border-gray-300 text-gray-700'
+            editor.isActive('bold') ? 'active' : 'border border-gray-300 text-gray-700'
           }`}
           title="Bold"
         >
@@ -76,7 +76,7 @@ const MenuBar = ({ editor }: { editor: Editor | null }) => {
         <button
           onClick={() => editor.chain().focus().toggleItalic().run()}
           className={`p-1.5 rounded hover:bg-gray-100 ${
-            editor.isActive('italic') ? 'bg-blue-100 text-blue-700 border border-blue-300' : 'border border-gray-300 text-gray-700'
+            editor.isActive('italic') ? 'active' : 'border border-gray-300 text-gray-700'
           }`}
           title="Italic"
         >
@@ -231,13 +231,13 @@ export default function ContentEditor({
   }, [editor, editorReady, highlightedContent]);
 
   return (
-    <div className="bg-white rounded-lg shadow-md p-4 relative">
+    <div className="bg-white rounded-lg shadow-md p-4 relative stats-card">
       <style>{editorStyles}</style>
       <div className="border border-gray-400 rounded-md p-4 min-h-[650px]">
         {isLoading ? (
           <div className="absolute inset-0 bg-white bg-opacity-80 flex items-center justify-center z-10">
             <div className="flex flex-col items-center">
-              <FiLoader className="animate-spin text-blue-600 text-2xl mb-2" />
+              <FiLoader className="animate-spin text-blue-600 text-2xl mb-2 loading-spinner" />
               <span className="text-gray-900">Generating content...</span>
             </div>
           </div>
