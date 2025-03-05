@@ -24,7 +24,7 @@ export async function POST(request: Request) {
       messages: [
         {
           role: 'system',
-          content: 'You are an expert SEO content writer who creates engaging, informative content.'
+          content: 'You are an expert SEO content writer who creates engaging, informative content with proper HTML formatting.'
         },
         {
           role: 'user',
@@ -40,7 +40,16 @@ export async function POST(request: Request) {
           - Written in a conversational tone
           - Optimized for SEO with proper keyword usage
           
-          Return ONLY the article content without any additional commentary.`
+          IMPORTANT: Format the content with proper HTML tags:
+          - Use <h1> for the main title
+          - Use <h2> for major sections
+          - Use <h3> for subsections
+          - Use <p> for paragraphs
+          - Use <strong> or <b> for emphasis and important points
+          - Use <ul> and <li> for lists
+          - Use <em> or <i> for italicized text
+          
+          Return ONLY the article content with HTML formatting, without any additional commentary.`
         }
       ],
       temperature: 0.7,
@@ -55,7 +64,10 @@ export async function POST(request: Request) {
       );
     }
     
-    return NextResponse.json({ content });
+    // Clean up the content to ensure it's valid HTML
+    const cleanedContent = cleanHtml(content);
+    
+    return NextResponse.json({ content: cleanedContent });
   } catch (error) {
     console.error('Error generating content:', error);
     return NextResponse.json(
@@ -63,4 +75,24 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
+}
+
+// Function to clean up HTML and ensure it's valid
+function cleanHtml(html: string) {
+  // Remove any markdown backticks that might be included
+  let cleaned = html.replace(/```html/g, '').replace(/```/g, '');
+  
+  // Ensure there's only one h1 tag
+  const h1Count = (cleaned.match(/<h1/g) || []).length;
+  if (h1Count > 1) {
+    // Replace additional h1 tags with h2
+    cleaned = cleaned.replace(/<h1/g, (match, index) => {
+      return index === cleaned.indexOf('<h1') ? match : '<h2';
+    });
+    cleaned = cleaned.replace(/<\/h1>/g, (match, index) => {
+      return index === cleaned.lastIndexOf('</h1>') ? match : '</h2>';
+    });
+  }
+  
+  return cleaned;
 } 
