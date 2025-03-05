@@ -24,16 +24,16 @@ export default function GenerateButton({
       <button
         onClick={onGenerate}
         disabled={isDisabled}
-        className="w-full flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-blue-300 disabled:cursor-not-allowed btn-primary"
+        className="w-full flex items-center justify-center px-6 py-2.5 border border-transparent text-base font-normal rounded-md text-white bg-blue-400 hover:bg-blue-500 focus:outline-none disabled:bg-blue-300 disabled:cursor-not-allowed"
       >
         {isGenerating ? (
           <>
-            <FiRefreshCw className="animate-spin mr-2 loading-spinner" size={20} />
+            <FiRefreshCw className="animate-spin mr-2 loading-spinner" size={18} />
             {isRegenerating ? 'Regenerating Content...' : 'Generating Content...'}
           </>
         ) : (
           <>
-            <FiFileText className="mr-2" size={20} />
+            <FiFileText className="mr-2" size={18} />
             {isRegenerating ? 'Regenerate Content' : 'Generate Content'}
           </>
         )}

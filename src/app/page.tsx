@@ -226,8 +226,8 @@ export default function Home() {
           <section className="lg:col-span-1 xl:col-span-2 flex flex-col">
             <div className="bg-white p-5 rounded-lg shadow-md h-full flex flex-col stats-card">
               {/* Topic Input */}
-              <div className="mb-6">
-                <h3 className="text-2xl font-medium text-gray-900 mb-3">Topic</h3>
+              <div>
+                <h3 className="text-2xl font-normal text-gray-900 mb-4">Topic</h3>
                 <TopicInput onSubmit={fetchKeywords} isLoading={isLoadingKeywords} />
               </div>
               
@@ -246,9 +246,9 @@ export default function Home() {
 
           {/* Right Column - Editor */}
           <section className="lg:col-span-2 xl:col-span-5 flex flex-col">
-            <div className="bg-white p-5 rounded-lg shadow-md h-full flex flex-col stats-card">
+            <div className="bg-white rounded-lg shadow-md h-full flex flex-col stats-card">
               {/* Generate Button */}
-              <div className="mb-6">
+              <div className="mb-8">
                 <GenerateButton
                   onGenerate={generateContent}
                   isGenerating={isGeneratingContent}
