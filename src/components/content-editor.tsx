@@ -132,29 +132,6 @@ const editorStyles = `
   .ProseMirror p {
     margin-bottom: 0.75rem !important;
   }
-
-  .debug-mode h1 {
-    border: 2px solid #ef4444 !important;
-    padding: 4px !important;
-    background: rgba(239, 68, 68, 0.1) !important;
-  }
-  
-  .debug-mode h2 {
-    border: 2px solid #3b82f6 !important;
-    padding: 4px !important;
-    background: rgba(59, 130, 246, 0.1) !important;
-  }
-  
-  .debug-mode h3 {
-    border: 2px solid #10b981 !important;
-    padding: 4px !important;
-    background: rgba(16, 185, 129, 0.1) !important;
-  }
-  
-  .debug-mode p {
-    border: 1px dashed #9ca3af !important;
-    padding: 2px !important;
-  }
 `;
 
 export default function ContentEditor({
@@ -166,7 +143,6 @@ export default function ContentEditor({
 }: ContentEditorProps) {
   const [highlightedContent, setHighlightedContent] = useState('');
   const [editorReady, setEditorReady] = useState(false);
-  const [debugMode, setDebugMode] = useState(false);
 
   // Highlight keywords in the content
   useEffect(() => {
@@ -254,26 +230,6 @@ export default function ContentEditor({
     }
   }, [editor, editorReady, highlightedContent]);
 
-  // Add debug function to check headings
-  const toggleDebugMode = () => {
-    setDebugMode(prev => !prev);
-    
-    if (editor) {
-      console.log('Raw content:', content);
-      console.log('Highlighted content:', highlightedContent);
-      console.log('Editor HTML:', editor.getHTML());
-      console.log('Is H1 active:', editor.isActive('heading', { level: 1 }));
-      console.log('Is H2 active:', editor.isActive('heading', { level: 2 }));
-      console.log('Is H3 active:', editor.isActive('heading', { level: 3 }));
-      
-      // Check for HTML structure issues
-      const editorContent = editor.getHTML();
-      console.log('H1 tags:', (editorContent.match(/<h1/g) || []).length);
-      console.log('H2 tags:', (editorContent.match(/<h2/g) || []).length);
-      console.log('H3 tags:', (editorContent.match(/<h3/g) || []).length);
-    }
-  };
-
   return (
     <div className="bg-white rounded-lg shadow-md p-4 relative">
       <style>{editorStyles}</style>
@@ -287,17 +243,9 @@ export default function ContentEditor({
           </div>
         ) : null}
         <MenuBar editor={editor} />
-        <button 
-          onClick={toggleDebugMode} 
-          className={`text-xs mb-2 px-2 py-1 rounded ${
-            debugMode ? 'bg-blue-100 text-blue-800' : 'text-gray-400 hover:text-gray-600'
-          }`}
-        >
-          {debugMode ? 'Disable Debug Mode' : 'Debug Headings'}
-        </button>
         <EditorContent 
           editor={editor} 
-          className={`prose max-w-none text-gray-900 ProseMirror ${debugMode ? 'debug-mode' : ''}`}
+          className="prose max-w-none text-gray-900 ProseMirror"
         />
       </div>
       <div className="mt-4 text-sm text-gray-900">
