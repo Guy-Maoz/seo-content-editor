@@ -10,4 +10,14 @@
 
 [functions]
   external_node_modules = ["@ampproject/toolbox-optimizer"]
-  included_files = ["**/*.node"] 
+  included_files = ["**/*.node"]
+  
+# Set longer timeout for the content generation function
+[[edge_functions]]
+  path = "/api/generate"
+  function = "generate"
+
+[functions."api/generate"]
+  included_files = []
+  excluded_files = []
+  timeout = 60 
