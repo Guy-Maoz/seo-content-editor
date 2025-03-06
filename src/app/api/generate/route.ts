@@ -9,11 +9,8 @@ const openai = new OpenAI({
 // Assistant ID
 const ASSISTANT_ID = 'asst_JXBmxj6nBTPncEpjwJmtzLTr';
 
-// Increase function timeout for Netlify
-export const config = {
-  maxDuration: 60, // Set maximum duration to 60 seconds
-  runtime: 'edge' // Use edge runtime for better performance
-};
+// Set increased function timeout
+export const maxDuration = 60; // Set maximum duration to 60 seconds
 
 export async function POST(request: Request) {
   try {
@@ -63,7 +60,7 @@ export async function POST(request: Request) {
       Return ONLY the article content with HTML formatting, without any additional commentary.`
     });
 
-    // Run the Assistant on the Thread with a tool timeout
+    // Run the Assistant on the Thread
     const run = await openai.beta.threads.runs.create(thread.id, {
       assistant_id: ASSISTANT_ID,
     });
