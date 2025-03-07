@@ -6,6 +6,12 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+// Assistant ID
+const ASSISTANT_ID = 'asst_JXBmxj6nBTPncEpjwJmtzLTr';
+
+// Set increased function timeout
+export const maxDuration = 60; // Set maximum duration to 60 seconds
+
 export async function POST(request: Request) {
   try {
     const { topic, keywords } = await request.json();
@@ -19,52 +25,129 @@ export async function POST(request: Request) {
 
     const keywordsList = keywords.map((k: any) => k.keyword).join(', ');
 
-    const response = await openai.chat.completions.create({
-      model: 'gpt-3.5-turbo',
-      messages: [
-        {
-          role: 'system',
-          content: 'You are an expert SEO content writer who creates engaging, informative content with proper HTML formatting.'
-        },
-        {
-          role: 'user',
-          content: `Write a well-structured, SEO-optimized article about "${topic}".
-          
-          Use the following keywords naturally throughout the text (don't force them):
-          ${keywordsList}
-          
-          The content should be:
-          - Engaging and informative
-          - Well-structured with clear sections
-          - Between 500-800 words
-          - Written in a conversational tone
-          - Optimized for SEO with proper keyword usage
-          
-          IMPORTANT: Format the content with proper HTML tags following these strict rules:
-          - Use <h1> for the main title (only use ONE h1 tag)
-          - Use <h2> for major sections (2-4 sections)
-          - Use <h3> for subsections where needed
-          - Use <p> for paragraphs
-          - Use <strong> or <b> for emphasis and important points
-          - Use <em> or <i> for italicized text
-          
-          DO NOT include <!DOCTYPE>, <html>, <head>, <body> or any other document structure tags.
-          Only provide the actual content with heading and paragraph tags.
-          
-          Make sure to use these HTML tags properly - they should be properly nested and closed.
-          The headings should have proper hierarchy (h1 -> h2 -> h3).
-          
-          Return ONLY the article content with HTML formatting, without any additional commentary.`
-        }
-      ],
-      temperature: 0.7,
+    // Create a Thread
+    const thread = await openai.beta.threads.create();
+
+    // Add a Message to the Thread
+    await openai.beta.threads.messages.create(thread.id, {
+      role: "user",
+      content: `Write a well-structured, SEO-optimized article about "${topic}".
+      
+      Use the following keywords naturally throughout the text (don't force them):
+      ${keywordsList}
+      
+      The content should be:
+      - Engaging and informative
+      - Well-structured with clear sections
+      - Between 500-800 words
+      - Written in a conversational tone
+      - Optimized for SEO with proper keyword usage
+      
+      IMPORTANT: Format the content with proper HTML tags following these strict rules:
+      - Use <h1> for the main title (only use ONE h1 tag)
+      - Use <h2> for major sections (2-4 sections)
+      - Use <h3> for subsections where needed
+      - Use <p> for paragraphs
+      - Use <strong> or <b> for emphasis and important points
+      - Use <em> or <i> for italicized text
+      
+      DO NOT include <!DOCTYPE>, <html>, <head>, <body> or any other document structure tags.
+      Only provide the actual content with heading and paragraph tags.
+      
+      Make sure to use these HTML tags properly - they should be properly nested and closed.
+      The headings should have proper hierarchy (h1 -> h2 -> h3).
+      
+      Return ONLY the article content with HTML formatting, without any additional commentary.`
     });
 
-    const content = response.choices[0]?.message?.content;
+    // Run the Assistant on the Thread
+    const run = await openai.beta.threads.runs.create(thread.id, {
+      assistant_id: ASSISTANT_ID,
+    });
+
+    // Set up polling with a maximum number of attempts and time between checks
+    const maxPollingAttempts = 30; // Maximum 30 checks
+    const pollingIntervalMs = 1000; // Check every 1 second
+    let pollingAttempts = 0;
+    let runStatus = await openai.beta.threads.runs.retrieve(thread.id, run.id);
+    
+    // Poll for the Run completion with a limit on total attempts
+    while (
+      pollingAttempts < maxPollingAttempts && 
+      runStatus.status !== 'completed' && 
+      runStatus.status !== 'failed' && 
+      runStatus.status !== 'cancelled'
+    ) {
+      // Increment attempt counter
+      pollingAttempts++;
+      
+      // Wait before checking again
+      await new Promise(resolve => setTimeout(resolve, pollingIntervalMs));
+      
+      // Check run status
+      runStatus = await openai.beta.threads.runs.retrieve(thread.id, run.id);
+      console.log(`Run status: ${runStatus.status} (Attempt ${pollingAttempts}/${maxPollingAttempts})`);
+      
+      // Handle if run requires action (e.g., function calls)
+      if (runStatus.status === 'requires_action') {
+        console.log('Run requires action, but we do not handle function calls in this implementation.');
+        await openai.beta.threads.runs.cancel(thread.id, run.id);
+        return NextResponse.json(
+          { error: 'Assistant requires function calls which are not implemented' },
+          { status: 500 }
+        );
+      }
+    }
+
+    // If we've hit our polling limit and the run isn't complete, cancel it
+    if (pollingAttempts >= maxPollingAttempts && runStatus.status !== 'completed') {
+      console.error('Maximum polling attempts reached. Cancelling run.');
+      await openai.beta.threads.runs.cancel(thread.id, run.id);
+      return NextResponse.json(
+        { error: 'Content generation timed out. Please try again.' },
+        { status: 504 } // Gateway Timeout status
+      );
+    }
+
+    if (runStatus.status !== 'completed') {
+      console.error('Run did not complete successfully:', runStatus.status);
+      return NextResponse.json(
+        { error: `Failed to generate content: ${runStatus.status}` },
+        { status: 500 }
+      );
+    }
+
+    // Get Messages from the Thread
+    const messages = await openai.beta.threads.messages.list(thread.id);
+    
+    // Find the latest assistant message
+    const assistantMessages = messages.data
+      .filter(message => message.role === 'assistant')
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    
+    if (assistantMessages.length === 0) {
+      return NextResponse.json(
+        { error: 'No response from assistant' },
+        { status: 500 }
+      );
+    }
+    
+    // Get the content from the latest assistant message
+    const latestMessage = assistantMessages[0];
+    let content = '';
+    
+    if (latestMessage.content && latestMessage.content.length > 0) {
+      // Extract text content from the message
+      for (const contentPart of latestMessage.content) {
+        if (contentPart.type === 'text') {
+          content += contentPart.text.value;
+        }
+      }
+    }
     
     if (!content) {
       return NextResponse.json(
-        { error: 'Failed to generate content' },
+        { error: 'Failed to get content from assistant message' },
         { status: 500 }
       );
     }

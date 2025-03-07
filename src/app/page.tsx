@@ -195,16 +195,13 @@ export default function Home() {
       <div className="max-w-[1600px] w-full mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header Section */}
         <header className="text-center mb-6">
-          <h1 className="text-4xl font-extrabold text-gray-900 sm:text-5xl mb-3">
+          <h1 className="text-4xl font-extrabold text-gray-900 sm:text-5xl">
             AI-Powered SEO Content Editor
           </h1>
-          <p className="text-xl text-gray-900 max-w-3xl mx-auto">
-            Create SEO-optimized content with AI assistance
-          </p>
         </header>
 
         {/* Instructions Section */}
-        <section className="bg-blue-50 border-l-4 border-blue-400 p-4 mb-6 rounded-md max-w-4xl mx-auto">
+        <section className="bg-blue-50 border-l-4 border-blue-400 p-4 mb-6 rounded-md max-w-6xl mx-auto">
           <div className="flex">
             <div className="flex-shrink-0">
               <FiInfo className="h-6 w-6 text-blue-600 sidebar-icon" />

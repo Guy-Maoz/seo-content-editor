@@ -1,24 +1,35 @@
 # AI-Powered SEO Content Editor
 
-An AI-powered content editor built with Next.js that helps users create SEO-optimized content based on search keywords. The tool integrates OpenAI for content generation and keyword suggestions.
+An AI-powered content editor built with Next.js that helps users create SEO-optimized content based on search keywords. The tool integrates OpenAI Assistants API for content generation and keyword suggestions, and Similarweb API for keyword metrics.
 
 ## Features
 
 - **Seed Topic Input**: Enter a seed topic to get started
 - **Keyword Suggestions**: AI generates high-search-volume related keywords
 - **Keyword Selection**: Select/deselect keywords using checkboxes
+- **Keyword Metrics**: View volume, difficulty, and CPC metrics from Similarweb
 - **Content Generation**: Generate SEO-optimized content using selected keywords
 - **Keyword Highlighting**: Highlights used keywords in the editor
 - **Dynamic Keyword Syncing**: Automatically unchecks keywords when removed from text
 - **Content Regeneration**: Refine text further with updated keyword selection
+- **Simplified Editor Toolbar**: Streamlined formatting options (H1, H2, H3, Text, Bold, Italic)
+- **Responsive Layout**: Spacious design that works well on various screen sizes
 
 ## Tech Stack
 
 - **Frontend**: Next.js 14 with React and TypeScript
 - **Styling**: Tailwind CSS
-- **AI Integration**: OpenAI API (GPT)
+- **AI Integration**: 
+  - OpenAI Assistants API for content generation
+  - OpenAI API for keyword suggestions
+- **Keyword Data**: Similarweb API for keyword metrics
 - **Text Editor**: TipTap (React-based rich text editor)
 - **Icons**: React Icons
+- **Deployment**: Netlify with continuous deployment
+
+## Live Demo
+
+Visit the live application: [https://similarweb-content-seo.netlify.app](https://similarweb-content-seo.netlify.app)
 
 ## Getting Started
 
@@ -27,6 +38,7 @@ An AI-powered content editor built with Next.js that helps users create SEO-opti
 - Node.js 18.17 or later
 - npm or yarn
 - OpenAI API key
+- Similarweb API key
 
 ### Installation
 
@@ -46,6 +58,7 @@ An AI-powered content editor built with Next.js that helps users create SEO-opti
 3. Create a `.env.local` file in the root directory and add your OpenAI API key:
    ```
    OPENAI_API_KEY=your_openai_api_key
+   SIMILARWEB_API_KEY=your SMWB REST API key
    ```
 
 4. Start the development server:
@@ -70,11 +83,43 @@ An AI-powered content editor built with Next.js that helps users create SEO-opti
 
 - `/src/app/api/keywords` - API route for keyword suggestions
 - `/src/app/api/generate` - API route for content generation
+- `/src/app/api/similarweb` - API routes for Similarweb keyword metrics
 - `/src/components` - React components
   - `topic-input.tsx` - Component for entering the seed topic
   - `keyword-selector.tsx` - Component for selecting keywords
   - `generate-button.tsx` - Component for generating content
   - `content-editor.tsx` - TipTap-based rich text editor component
+
+## Deployment
+
+The application is deployed to Netlify with continuous deployment from GitHub.
+
+### Manual Deployment
+
+1. Build the application:
+   ```bash
+   npm run build
+   ```
+
+2. Deploy to Netlify:
+   ```bash
+   netlify deploy --prod
+   ```
+
+### Continuous Deployment
+
+The application is set up for continuous deployment from GitHub:
+1. Any push to the main branch triggers a new build and deployment
+2. The custom domain is configured at Netlify: [similarweb-content-seo.netlify.app](https://similarweb-content-seo.netlify.app)
+
+## Recent Updates
+
+- **Layout Improvements**: More spacious design with better responsive behavior
+- **Simplified Toolbar**: Reduced to essential formatting options (H1, H2, H3, Text, Bold, Italic)
+- **Keyword List Enhancement**: Vertical space optimization to reduce unnecessary scrolling
+- **Content Generation**: Enhanced with OpenAI Assistants API for improved HTML structure and proper heading hierarchy
+- **Similarweb Integration**: Added keyword metrics (volume, difficulty, CPC) from Similarweb API
+- **Netlify Deployment**: Set up continuous deployment from GitHub
 
 ## License
 
