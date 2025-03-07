@@ -13,6 +13,34 @@ function logWarning(message: string) {
 const SIMILARWEB_API_KEY = process.env.SIMILARWEB_API_KEY || 'd14923977f194036a9c41c5d924fd9ec';
 const SIMILARWEB_BASE_URL = 'https://api.similarweb.com/v4';
 
+// Check if a keyword looks like nonsense
+function isLikelyNonsenseKeyword(keyword: string) {
+  // Convert to lowercase for consistent checking
+  const lowerKeyword = keyword.toLowerCase();
+  
+  // Check for obvious nonsense patterns
+  const nonsensePatterns = [
+    /^(blah?|bla)\s+(blah?|bla)/, // "bla bla", "blah blah"
+    /^(asdf|qwerty|zxcv)/, // Keyboard patterns
+    /^test\s+test/, // "test test"
+    /^(foo|bar|baz|foobar)/, // Programming placeholder terms
+    /[^\s\w]$/ // Contains special characters
+  ];
+  
+  for (const pattern of nonsensePatterns) {
+    if (pattern.test(lowerKeyword)) {
+      return true;
+    }
+  }
+  
+  // Check for random strings with no spaces (likely meaningless)
+  if (lowerKeyword.length > 10 && !lowerKeyword.includes(' ') && /[^a-z]/.test(lowerKeyword)) {
+    return true;
+  }
+  
+  return false;
+}
+
 export async function POST(request: Request) {
   try {
     const { keyword } = await request.json();
@@ -24,15 +52,29 @@ export async function POST(request: Request) {
       );
     }
 
+    // DIRECT CONSOLE OUTPUT - will always show in terminal
+    console.log(`\n\n======== KEYWORD REQUEST: "${keyword}" ========`);
+    
     // Log the start of processing - always visible
     console.log(`\x1b[36m%s\x1b[0m`, `🔍 Processing keyword request: "${keyword}"`);
     
     // Get metrics for this keyword from SimilarWeb
     const metrics = await getKeywordMetricsFromSimilarWeb(keyword);
     
-    // Log whether this was fallback data
-    if (metrics.isFallback) {
+    // Force manual console.error to ensure it shows in terminal
+    if (metrics.volume === 0 || metrics.isFallback) {
+      // This will DEFINITELY show in terminal
+      console.error(`\n⚠️⚠️⚠️ FALLBACK USED for "${keyword}": API returned zeros or failed ⚠️⚠️⚠️`);
+      
+      // Mark as fallback if volume is zero
+      if (metrics.volume === 0 && !metrics.isFallback) {
+        metrics.isFallback = true;
+      }
+      
+      // Normal warning that might be affected by logger settings
       logWarning(`FALLBACK DATA USED for "${keyword}": volume=${metrics.volume}, difficulty=${metrics.difficulty}, cpc=${metrics.cpc}`);
+    } else {
+      console.log(`✅ Real data found for "${keyword}": volume=${metrics.volume}`);
     }
     
     return NextResponse.json({ 
@@ -51,6 +93,12 @@ export async function POST(request: Request) {
 }
 
 async function getKeywordMetricsFromSimilarWeb(keyword: string) {
+  // Check for nonsense keywords first to skip API call completely
+  if (isLikelyNonsenseKeyword(keyword)) {
+    console.log(`Detected likely nonsense keyword: "${keyword}" - skipping API call and using fallback`);
+    return generateFallbackMetrics(keyword);
+  }
+  
   try {
     // Format the keyword for the URL
     const encodedKeyword = encodeURIComponent(keyword);
@@ -68,11 +116,12 @@ async function getKeywordMetricsFromSimilarWeb(keyword: string) {
     }
     
     const data = await response.json();
+    let metrics;
     
     // Handle different possible response structures
     if (data && data.data) {
       // First structure type
-      return {
+      metrics = {
         volume: data.data.volume || 0,
         difficulty: Math.round((data.data.organic_difficulty || 0) * 100) / 100,
         cpc: data.data.cpc_range?.high_bid || data.data.cpc_range?.low_bid || 0,
@@ -80,7 +129,7 @@ async function getKeywordMetricsFromSimilarWeb(keyword: string) {
       };
     } else if (data && data.response) {
       // Alternative structure type
-      return {
+      metrics = {
         volume: data.response.volume || 0,
         difficulty: Math.round((data.response.organic_difficulty || 0) * 100) / 100,
         cpc: data.response.cpc?.highest || data.response.cpc?.average || 0,
@@ -88,16 +137,25 @@ async function getKeywordMetricsFromSimilarWeb(keyword: string) {
       };
     } else if (data) {
       // Directly on data object
-      return {
+      metrics = {
         volume: data.volume || 0,
         difficulty: Math.round((data.organic_difficulty || 0) * 100) / 100,
         cpc: data.cpc?.highest || data.cpc?.average || 0,
         isFallback: false
       };
+    } else {
+      // If no valid data structure, use fallback
+      return generateFallbackMetrics(keyword);
     }
     
-    // If none of the structures match, return a generated fallback
-    return generateFallbackMetrics(keyword);
+    // If we got all zeros or very low values, use the fallback instead
+    // This is the key fix - detecting "success" responses with meaningless data
+    if (metrics.volume === 0 || (metrics.volume < 10 && metrics.difficulty === 0 && metrics.cpc === 0)) {
+      console.log(`SimilarWeb API returned zeros or near-zeros for "${keyword}" - using fallback instead`);
+      return generateFallbackMetrics(keyword);
+    }
+    
+    return metrics;
   } catch (error) {
     console.error(`Error fetching SimilarWeb metrics for "${keyword}":`, error);
     // Generate realistic fallback data instead of returning null
