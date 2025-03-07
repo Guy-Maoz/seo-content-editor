@@ -271,9 +271,23 @@ export default function Home() {
         </div>
 
         <div className="mt-6 text-center">
-          <Link href="/test-tools" className="text-blue-600 hover:text-blue-800 underline">
-            Try our SEO Assistant with Keyword Metrics Tool →
-          </Link>
+          <div className="p-4 bg-gray-100 rounded-lg max-w-3xl mx-auto">
+            <h3 className="text-lg font-semibold text-gray-800 mb-2">Developer Tools</h3>
+            <div className="flex flex-col sm:flex-row justify-center gap-4">
+              <Link 
+                href="/test-tools" 
+                className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-4 py-2 rounded-md border border-blue-200 transition-colors"
+              >
+                SEO Assistant Tools
+              </Link>
+              <Link 
+                href="/test-tools/diagnostic" 
+                className="text-green-600 hover:text-green-800 hover:bg-green-50 px-4 py-2 rounded-md border border-green-200 transition-colors"
+              >
+                Assistant Diagnostic Tool
+              </Link>
+            </div>
+          </div>
         </div>
       </div>
     </main>
