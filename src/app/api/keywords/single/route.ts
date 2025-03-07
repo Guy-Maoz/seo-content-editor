@@ -1,5 +1,14 @@
 import { NextResponse } from 'next/server';
 
+// Add a helper function to print colored messages to console
+function logWarning(message: string) {
+  // Use bright yellow with bold text and multiple warning symbols
+  console.log('\x1b[1;33m%s\x1b[0m', `⚠️⚠️⚠️ ${message} ⚠️⚠️⚠️`);
+  
+  // Also log to standard error for extra visibility
+  console.error(`FALLBACK WARNING: ${message}`);
+}
+
 // SimilarWeb API configuration
 const SIMILARWEB_API_KEY = process.env.SIMILARWEB_API_KEY || 'd14923977f194036a9c41c5d924fd9ec';
 const SIMILARWEB_BASE_URL = 'https://api.similarweb.com/v4';
@@ -15,13 +24,22 @@ export async function POST(request: Request) {
       );
     }
 
+    // Log the start of processing - always visible
+    console.log(`\x1b[36m%s\x1b[0m`, `🔍 Processing keyword request: "${keyword}"`);
+    
     // Get metrics for this keyword from SimilarWeb
     const metrics = await getKeywordMetricsFromSimilarWeb(keyword);
+    
+    // Log whether this was fallback data
+    if (metrics.isFallback) {
+      logWarning(`FALLBACK DATA USED for "${keyword}": volume=${metrics.volume}, difficulty=${metrics.difficulty}, cpc=${metrics.cpc}`);
+    }
     
     return NextResponse.json({ 
       keyword,
       metrics,
-      success: !!metrics
+      success: !!metrics,
+      isFallback: metrics.isFallback || false
     });
   } catch (error) {
     console.error('Error fetching keyword metrics:', error);
@@ -57,21 +75,24 @@ async function getKeywordMetricsFromSimilarWeb(keyword: string) {
       return {
         volume: data.data.volume || 0,
         difficulty: Math.round((data.data.organic_difficulty || 0) * 100) / 100,
-        cpc: data.data.cpc_range?.high_bid || data.data.cpc_range?.low_bid || 0
+        cpc: data.data.cpc_range?.high_bid || data.data.cpc_range?.low_bid || 0,
+        isFallback: false
       };
     } else if (data && data.response) {
       // Alternative structure type
       return {
         volume: data.response.volume || 0,
         difficulty: Math.round((data.response.organic_difficulty || 0) * 100) / 100,
-        cpc: data.response.cpc?.highest || data.response.cpc?.average || 0
+        cpc: data.response.cpc?.highest || data.response.cpc?.average || 0,
+        isFallback: false
       };
     } else if (data) {
       // Directly on data object
       return {
         volume: data.volume || 0,
         difficulty: Math.round((data.organic_difficulty || 0) * 100) / 100,
-        cpc: data.cpc?.highest || data.cpc?.average || 0
+        cpc: data.cpc?.highest || data.cpc?.average || 0,
+        isFallback: false
       };
     }
     
@@ -102,7 +123,7 @@ function generateFallbackMetrics(keyword: string) {
   const cpc = (difficulty / 30 + Math.random()).toFixed(2);
   
   // Make the fallback message very visible in the terminal
-  console.log('\x1b[33m%s\x1b[0m', `⚠️ FALLBACK DATA USED for "${keyword}": volume=${volume}, difficulty=${difficulty}, cpc=${cpc}`);
+  logWarning(`FALLBACK DATA GENERATED for "${keyword}": volume=${volume}, difficulty=${difficulty}, cpc=${cpc}`);
   
   return {
     volume,

@@ -12,6 +12,7 @@ export interface Keyword {
   isLoading?: boolean;
   metricsLoading?: boolean;
   source?: string;
+  isFallback?: boolean;
 }
 
 interface KeywordSelectorProps {
@@ -121,12 +122,17 @@ export default function KeywordSelector({
                   <>
                     <div className="col-span-2 text-center text-gray-900 font-medium keyword-volume">
                       {keyword.volume.toLocaleString()}
+                      {keyword.isFallback && (
+                        <span className="inline-block ml-1 px-1 text-xs bg-yellow-100 text-yellow-800 rounded" title="Estimated data">
+                          est
+                        </span>
+                      )}
                     </div>
                     <div className="col-span-2 text-center">
                       <div className="flex items-center justify-center">
                         <div className="w-full difficulty-bar">
                           <div
-                            className="difficulty-indicator"
+                            className={`difficulty-indicator ${keyword.isFallback ? 'bg-yellow-400' : ''}`}
                             style={{ width: `${keyword.difficulty}%` }}
                           ></div>
                         </div>
@@ -135,6 +141,11 @@ export default function KeywordSelector({
                     </div>
                     <div className="col-span-2 text-center text-gray-900 font-medium">
                       ${typeof keyword.cpc === 'number' ? keyword.cpc.toFixed(2) : parseFloat(keyword.cpc).toFixed(2)}
+                      {keyword.isFallback && (
+                        <span className="inline-block ml-1 px-1 text-xs bg-yellow-100 text-yellow-800 rounded" title="Estimated data">
+                          est
+                        </span>
+                      )}
                     </div>
                   </>
                 )}

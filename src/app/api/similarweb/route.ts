@@ -1,5 +1,14 @@
 import { NextResponse } from 'next/server';
 
+// Add a helper function to print colored messages to console
+function logWarning(message: string) {
+  // Use bright yellow with bold text and multiple warning symbols
+  console.log('\x1b[1;33m%s\x1b[0m', `⚠️⚠️⚠️ ${message} ⚠️⚠️⚠️`);
+  
+  // Also log to standard error for extra visibility
+  console.error(`FALLBACK WARNING: ${message}`);
+}
+
 // API key for Similarweb
 const SIMILARWEB_API_KEY = 'd14923977f194036a9c41c5d924fd9ec';
 const SIMILARWEB_BASE_URL = 'https://api.similarweb.com/v4';
@@ -15,8 +24,16 @@ export async function POST(request: Request) {
       );
     }
 
+    // Log the start of processing - always visible
+    console.log(`\x1b[36m%s\x1b[0m`, `🔍 Processing similarweb request: "${topic}"`);
+
     // Fetch keyword metrics from Similarweb API
     const keywordMetrics = await getKeywordMetrics(topic);
+
+    // Check if fallback was used
+    if (keywordMetrics.keywords.some(k => k.isFallback)) {
+      logWarning(`FALLBACK METRICS USED for "${topic}"`);
+    }
 
     return NextResponse.json(keywordMetrics);
   } catch (error) {
@@ -51,7 +68,7 @@ async function getKeywordMetrics(keyword: string) {
   } catch (error) {
     console.error('Error in Similarweb API call:', error);
     // Create fallback data and log clearly that we're using it
-    console.log('\x1b[33m%s\x1b[0m', `⚠️ SIMILARWEB API FALLBACK USED for "${keyword}"`);
+    logWarning(`SIMILARWEB API FALLBACK USED for "${keyword}"`);
     return {
       keywords: [{
         keyword: keyword,
@@ -68,10 +85,27 @@ async function getKeywordMetrics(keyword: string) {
 function transformSimilarwebData(data: any, mainKeyword: string) {
   // Check if we have valid data
   if (!data || !data.response) {
-    return { keywords: [] };
+    logWarning(`No valid response data from SimilarWeb for "${mainKeyword}" - using fallback`);
+    return { 
+      keywords: [{
+        keyword: mainKeyword,
+        volume: 1000,
+        difficulty: 50,
+        cpc: 0.5,
+        selected: true,
+        isFallback: true
+      }] 
+    };
   }
 
   const keywordData = data.response;
+  
+  // If we have zero volume, treat as fallback case
+  const isEffectivelyFallback = !keywordData.volume || keywordData.volume === 0;
+  
+  if (isEffectivelyFallback) {
+    logWarning(`Zero volume data from SimilarWeb for "${mainKeyword}" - treating as fallback`);
+  }
   
   // Create a formatted keyword object
   const formattedKeyword = {
@@ -79,7 +113,8 @@ function transformSimilarwebData(data: any, mainKeyword: string) {
     volume: keywordData.volume || 0,
     difficulty: Math.round((keywordData.organic_difficulty || 0) * 100),
     cpc: keywordData.cpc?.highest || 0,
-    selected: true
+    selected: true,
+    isFallback: isEffectivelyFallback
   };
   
   // Related keywords might not be directly available in this endpoint

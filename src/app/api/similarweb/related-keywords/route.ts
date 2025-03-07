@@ -1,5 +1,14 @@
 import { NextResponse } from 'next/server';
 
+// Add a helper function to print colored messages to console
+function logWarning(message: string) {
+  // Use bright yellow with bold text and multiple warning symbols
+  console.log('\x1b[1;33m%s\x1b[0m', `⚠️⚠️⚠️ ${message} ⚠️⚠️⚠️`);
+  
+  // Also log to standard error for extra visibility
+  console.error(`FALLBACK WARNING: ${message}`);
+}
+
 // API key for Similarweb
 const SIMILARWEB_API_KEY = 'd14923977f194036a9c41c5d924fd9ec';
 const SIMILARWEB_BASE_URL = 'https://api.similarweb.com/v1';
@@ -15,8 +24,16 @@ export async function POST(request: Request) {
       );
     }
 
+    // Log the start of processing - always visible
+    console.log(`\x1b[36m%s\x1b[0m`, `🔍 Processing related keywords request: "${topic}"`);
+
     // Fetch related keywords from Similarweb API
     const relatedKeywords = await getRelatedKeywords(topic);
+
+    // Check if fallback was used
+    if (relatedKeywords.keywords.some(k => k.isFallback)) {
+      logWarning(`FALLBACK DATA USED for related keywords to "${topic}"`);
+    }
 
     return NextResponse.json(relatedKeywords);
   } catch (error) {
@@ -50,7 +67,7 @@ async function getRelatedKeywords(keyword: string) {
   } catch (error) {
     console.error('Error in Similarweb related keywords API call:', error);
     // If the API fails, we'll return a fallback with just the main keyword
-    console.log('\x1b[33m%s\x1b[0m', `⚠️ SIMILARWEB RELATED KEYWORDS FALLBACK USED for "${keyword}"`);
+    logWarning(`RELATED KEYWORDS API FALLBACK USED for "${keyword}"`);
     return {
       keywords: [
         {
