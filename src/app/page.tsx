@@ -6,6 +6,7 @@ import KeywordSelector, { Keyword } from '@/components/keyword-selector';
 import GenerateButton from '@/components/generate-button';
 import ContentEditor from '@/components/content-editor';
 import { FiInfo } from 'react-icons/fi';
+import Link from 'next/link';
 
 export default function Home() {
   const [topic, setTopic] = useState('');
@@ -267,6 +268,12 @@ export default function Home() {
               </div>
             </div>
           </section>
+        </div>
+
+        <div className="mt-6 text-center">
+          <Link href="/test-tools" className="text-blue-600 hover:text-blue-800 underline">
+            Try our SEO Assistant with Keyword Metrics Tool →
+          </Link>
         </div>
       </div>
     </main>
