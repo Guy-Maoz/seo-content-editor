@@ -17,29 +17,54 @@ export async function POST(request: Request) {
       );
     }
 
+    console.log(`Generating ${isUpdate ? 'updated' : 'new'} content for topic: "${topic}" with ${keywords.length} keywords`);
+    
     const prompt = isUpdate
       ? generateUpdatePrompt(topic, keywords, existingContent)
       : generateNewPrompt(topic, keywords);
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4-turbo-preview",
-      messages: [
-        {
-          role: "system",
-          content: `You are an expert SEO content writer. You create engaging, informative, and high-quality content that utilizes keywords naturally while providing real value to readers.`
+    // Log the start of the API request
+    console.log(`Sending request to OpenAI for content generation (${prompt.length} chars)`);
+    
+    try {
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4-turbo-preview",
+        messages: [
+          {
+            role: "system",
+            content: `You are an expert SEO content writer. You create engaging, informative, and high-quality content that utilizes keywords naturally while providing real value to readers.`
+          },
+          {
+            role: "user",
+            content: prompt
+          }
+        ],
+        temperature: 0.7,
+        max_tokens: 2500,
+      });
+
+      if (!completion.choices[0]?.message?.content) {
+        console.error('Empty response from OpenAI content generation');
+        return NextResponse.json({ 
+          content: existingContent || '',
+          error: "Failed to generate content - empty response" 
+        });
+      }
+
+      const generatedContent = completion.choices[0].message.content;
+      console.log(`Successfully generated content (${generatedContent.length} chars)`);
+
+      return NextResponse.json({ content: generatedContent });
+    } catch (apiError) {
+      console.error('OpenAI API error:', apiError);
+      return NextResponse.json(
+        { 
+          error: "OpenAI API error: " + (apiError as Error).message,
+          content: existingContent || '' 
         },
-        {
-          role: "user",
-          content: prompt
-        }
-      ],
-      temperature: 0.7,
-      max_tokens: 2500,
-    });
-
-    const generatedContent = completion.choices[0].message.content;
-
-    return NextResponse.json({ content: generatedContent });
+        { status: 500 }
+      );
+    }
   } catch (error) {
     console.error('Error generating content:', error);
     return NextResponse.json(
