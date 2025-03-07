@@ -50,7 +50,18 @@ async function getKeywordMetrics(keyword: string) {
     return keywordsData;
   } catch (error) {
     console.error('Error in Similarweb API call:', error);
-    throw error;
+    // Create fallback data and log clearly that we're using it
+    console.log('\x1b[33m%s\x1b[0m', `⚠️ SIMILARWEB API FALLBACK USED for "${keyword}"`);
+    return {
+      keywords: [{
+        keyword: keyword,
+        volume: 1000, // Fallback value
+        difficulty: 50, // Fallback value
+        cpc: 0.5, // Fallback value
+        selected: true,
+        isFallback: true
+      }]
+    };
   }
 }
 

@@ -50,6 +50,7 @@ async function getRelatedKeywords(keyword: string) {
   } catch (error) {
     console.error('Error in Similarweb related keywords API call:', error);
     // If the API fails, we'll return a fallback with just the main keyword
+    console.log('\x1b[33m%s\x1b[0m', `⚠️ SIMILARWEB RELATED KEYWORDS FALLBACK USED for "${keyword}"`);
     return {
       keywords: [
         {
@@ -57,7 +58,8 @@ async function getRelatedKeywords(keyword: string) {
           volume: 1000, // Fallback value
           difficulty: 50, // Fallback value
           cpc: 0.5, // Fallback value
-          selected: true
+          selected: true,
+          isFallback: true
         }
       ]
     };

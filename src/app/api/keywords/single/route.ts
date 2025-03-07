@@ -101,7 +101,8 @@ function generateFallbackMetrics(keyword: string) {
   // CPC often correlates with competition/difficulty
   const cpc = (difficulty / 30 + Math.random()).toFixed(2);
   
-  console.log(`Generated fallback metrics for "${keyword}": volume=${volume}, difficulty=${difficulty}, cpc=${cpc}`);
+  // Make the fallback message very visible in the terminal
+  console.log('\x1b[33m%s\x1b[0m', `⚠️ FALLBACK DATA USED for "${keyword}": volume=${volume}, difficulty=${difficulty}, cpc=${cpc}`);
   
   return {
     volume,

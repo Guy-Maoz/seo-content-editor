@@ -131,7 +131,8 @@ function generateFallbackMetrics(keyword: string): SimilarwebKeywordMetrics {
   // CPC often correlates with competition/difficulty
   const cpc = (difficulty / 30 + Math.random()).toFixed(2);
   
-  console.log(`Generated fallback metrics for "${keyword}": volume=${volume}, difficulty=${difficulty}, cpc=${cpc}`);
+  // Make the fallback message more visible in the terminal
+  console.log('\x1b[33m%s\x1b[0m', `⚠️ ASSISTANT TOOL FALLBACK DATA USED for "${keyword}": volume=${volume}, difficulty=${difficulty}, cpc=${cpc}`);
   
   return {
     volume,
