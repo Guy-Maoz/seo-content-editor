@@ -12,6 +12,27 @@ const ASSISTANT_ID = 'asst_JXBmxj6nBTPncEpjwJmtzLTr';
 // Set increased function timeout
 export const maxDuration = 60; // Set maximum duration to 60 seconds
 
+// Define our tool schema
+const TOOLS = [
+  {
+    type: "function" as const,
+    function: {
+      name: "get_keyword_metrics",
+      description: "Get search volume, SEO difficulty, and cost-per-click data for a specific keyword from Similarweb",
+      parameters: {
+        type: "object",
+        properties: {
+          keyword: {
+            type: "string",
+            description: "The keyword to look up metrics for (e.g., 'best running shoes')"
+          }
+        },
+        required: ["keyword"]
+      }
+    }
+  }
+];
+
 export async function POST(request: Request) {
   try {
     const { topic, keywords } = await request.json();
@@ -60,9 +81,10 @@ export async function POST(request: Request) {
       Return ONLY the article content with HTML formatting, without any additional commentary.`
     });
 
-    // Run the Assistant on the Thread
+    // Run the Assistant on the Thread with tools
     const run = await openai.beta.threads.runs.create(thread.id, {
       assistant_id: ASSISTANT_ID,
+      tools: TOOLS
     });
 
     // Set up polling with a maximum number of attempts and time between checks
@@ -90,12 +112,76 @@ export async function POST(request: Request) {
       
       // Handle if run requires action (e.g., function calls)
       if (runStatus.status === 'requires_action') {
-        console.log('Run requires action, but we do not handle function calls in this implementation.');
-        await openai.beta.threads.runs.cancel(thread.id, run.id);
-        return NextResponse.json(
-          { error: 'Assistant requires function calls which are not implemented' },
-          { status: 500 }
-        );
+        console.log('Function calls required. Processing tool calls...');
+        
+        const toolCalls = runStatus.required_action?.submit_tool_outputs?.tool_calls;
+        
+        if (toolCalls && toolCalls.length > 0) {
+          const toolOutputs: { tool_call_id: string; output: string }[] = [];
+          
+          // Process each tool call
+          for (const toolCall of toolCalls) {
+            if (toolCall.function.name === 'get_keyword_metrics') {
+              try {
+                const args = JSON.parse(toolCall.function.arguments);
+                const keyword = args.keyword;
+                
+                console.log(`Content generation fetching metrics for: "${keyword}"`);
+                
+                // Set base URL depending on environment
+                const baseUrl = process.env.NODE_ENV === 'production' 
+                  ? 'https://seo-content-editor.netlify.app' 
+                  : `http://localhost:${process.env.PORT || 3000}`;
+                
+                // Call our keyword metrics API
+                const response = await fetch(`${baseUrl}/api/tools/keyword-metrics`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ keyword })
+                });
+                
+                let output;
+                if (response.ok) {
+                  output = await response.json();
+                } else {
+                  // If API fails, generate fallback data
+                  output = { 
+                    keyword,
+                    volume: 1000, 
+                    difficulty: 50,
+                    cpc: 0.5,
+                    isFallback: true
+                  };
+                }
+                
+                toolOutputs.push({
+                  tool_call_id: toolCall.id,
+                  output: JSON.stringify(output)
+                });
+              } catch (error) {
+                console.error('Error processing keyword metrics:', error);
+                // Return error information
+                toolOutputs.push({
+                  tool_call_id: toolCall.id,
+                  output: JSON.stringify({ error: 'Failed to get keyword metrics' })
+                });
+              }
+            } else {
+              // Unknown function
+              toolOutputs.push({
+                tool_call_id: toolCall.id,
+                output: JSON.stringify({ error: `Unknown function: ${toolCall.function.name}` })
+              });
+            }
+          }
+          
+          // Submit all tool outputs back to the assistant
+          if (toolOutputs.length > 0) {
+            await openai.beta.threads.runs.submitToolOutputs(thread.id, run.id, {
+              tool_outputs: toolOutputs
+            });
+          }
+        }
       }
     }
 
