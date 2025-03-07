@@ -2,31 +2,36 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import TopicInput from '@/components/topic-input';
-import KeywordSelector, { Keyword } from '@/components/keyword-selector';
-import GenerateButton from '@/components/generate-button';
+import KeywordBank from '@/components/keyword-bank';
 import ContentEditor from '@/components/content-editor';
+import GenerateButton from '@/components/generate-button';
+import { Keyword } from '@/types/keyword';
 import { FiInfo } from 'react-icons/fi';
 import Link from 'next/link';
 
 export default function Home() {
   const [topic, setTopic] = useState('');
-  const [keywords, setKeywords] = useState<Keyword[]>([]);
+  const [suggestedKeywords, setSuggestedKeywords] = useState<Keyword[]>([]);
+  const [usedKeywords, setUsedKeywords] = useState<Keyword[]>([]);
+  const [negativeKeywords, setNegativeKeywords] = useState<Keyword[]>([]);
   const [content, setContent] = useState('');
   const [isLoadingKeywords, setIsLoadingKeywords] = useState(false);
-  const [isEnrichingKeywords, setIsEnrichingKeywords] = useState(false);
   const [isGeneratingContent, setIsGeneratingContent] = useState(false);
-  const [isRegenerating, setIsRegenerating] = useState(false);
+  const [isAnalyzingContent, setIsAnalyzingContent] = useState(false);
 
-  const fetchKeywords = async (topic: string) => {
+  // Fetch keywords from API based on topic
+  const fetchKeywords = async (topicValue: string) => {
+    if (!topicValue.trim()) return;
+    
     setIsLoadingKeywords(true);
+    setSuggestedKeywords([]);
+    
     try {
-      // Get keywords from OpenAI
+      // Initial AI keywords request
       const aiResponse = await fetch('/api/keywords/ai', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ topic }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topic: topicValue }),
       });
 
       if (!aiResponse.ok) {
@@ -35,34 +40,28 @@ export default function Home() {
 
       const aiData = await aiResponse.json();
       
-      // Add loading state to metrics only (not the entire keyword)
+      // Add placeholders for metrics
       const keywordsWithLoadingMetrics = aiData.keywords.map((keyword: any) => ({
-        ...keyword,
-        selected: true,
-        metricsLoading: true, // Only metrics are loading
+        keyword: keyword.keyword,
+        volume: 0,
+        difficulty: 0,
+        cpc: 0,
+        selected: false,
+        metricsLoading: true,
         source: 'openai'
       }));
 
-      // Set these initial keywords immediately
-      setKeywords(keywordsWithLoadingMetrics);
-      setTopic(topic);
-      setIsLoadingKeywords(false);
+      // Set initial keywords
+      setSuggestedKeywords(keywordsWithLoadingMetrics);
+      setTopic(topicValue);
       
-      // Start enriching keywords one by one
-      setIsEnrichingKeywords(true);
-      
-      // Enrich each keyword individually and update the state as each one completes
+      // Enrich each keyword with metrics
       for (let i = 0; i < keywordsWithLoadingMetrics.length; i++) {
         const keyword = keywordsWithLoadingMetrics[i];
         try {
-          console.log(`Fetching SimilarWeb data for keyword: "${keyword.keyword}"`);
-          
-          // Fetch data for this specific keyword
           const response = await fetch('/api/keywords/single', {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ keyword: keyword.keyword }),
           });
           
@@ -70,92 +69,90 @@ export default function Home() {
             const data = await response.json();
             
             if (data.metrics) {
-              console.log(`✅ Got SimilarWeb data for "${keyword.keyword}": volume=${data.metrics.volume}, difficulty=${data.metrics.difficulty}, cpc=${data.metrics.cpc}`);
-              
-              // Update just this keyword in the state
-              setKeywords(prevKeywords => {
+              // Update this keyword with metrics
+              setSuggestedKeywords(prevKeywords => {
                 const newKeywords = [...prevKeywords];
-                newKeywords[i] = {
-                  ...newKeywords[i],
-                  volume: data.metrics.volume || newKeywords[i].volume,
-                  difficulty: data.metrics.difficulty || newKeywords[i].difficulty,
-                  cpc: data.metrics.cpc || newKeywords[i].cpc,
-                  metricsLoading: false,
-                  source: 'similarweb'
-                };
+                const keywordIndex = newKeywords.findIndex(k => k.keyword === keyword.keyword);
+                
+                if (keywordIndex >= 0) {
+                  newKeywords[keywordIndex] = {
+                    ...newKeywords[keywordIndex],
+                    volume: data.metrics.volume || 0,
+                    difficulty: data.metrics.difficulty || 0,
+                    cpc: data.metrics.cpc || 0,
+                    metricsLoading: false,
+                    source: 'similarweb'
+                  };
+                }
                 return newKeywords;
               });
             } else {
-              console.log(`❌ No SimilarWeb data for "${keyword.keyword}", using OpenAI estimates`);
               // Mark as loaded but keep OpenAI data
-              setKeywords(prevKeywords => {
+              setSuggestedKeywords(prevKeywords => {
                 const newKeywords = [...prevKeywords];
-                newKeywords[i] = {
-                  ...newKeywords[i],
-                  metricsLoading: false
-                };
+                const keywordIndex = newKeywords.findIndex(k => k.keyword === keyword.keyword);
+                
+                if (keywordIndex >= 0) {
+                  newKeywords[keywordIndex] = {
+                    ...newKeywords[keywordIndex],
+                    metricsLoading: false
+                  };
+                }
                 return newKeywords;
               });
             }
-          } else {
-            // Mark as loaded but keep OpenAI data on error
-            setKeywords(prevKeywords => {
-              const newKeywords = [...prevKeywords];
-              newKeywords[i] = {
-                ...newKeywords[i],
-                metricsLoading: false
-              };
-              return newKeywords;
-            });
           }
-          
-          // Small delay between requests to avoid rate limiting
-          await new Promise(resolve => setTimeout(resolve, 500));
         } catch (error) {
           console.error(`Error enriching keyword "${keyword.keyword}":`, error);
           
-          // Mark as loaded but keep OpenAI data on error
-          setKeywords(prevKeywords => {
+          // Mark as loaded but with error
+          setSuggestedKeywords(prevKeywords => {
             const newKeywords = [...prevKeywords];
-            newKeywords[i] = {
-              ...newKeywords[i],
-              metricsLoading: false
-            };
+            const keywordIndex = newKeywords.findIndex(k => k.keyword === keyword.keyword);
+            
+            if (keywordIndex >= 0) {
+              newKeywords[keywordIndex] = {
+                ...newKeywords[keywordIndex],
+                metricsLoading: false,
+                error: true
+              };
+            }
             return newKeywords;
           });
-          
-          // Still add a delay after an error
-          await new Promise(resolve => setTimeout(resolve, 500));
         }
       }
-      
-      setIsEnrichingKeywords(false);
     } catch (error) {
       console.error('Error fetching keywords:', error);
-      alert('Failed to fetch keywords. Please try again.');
+    } finally {
       setIsLoadingKeywords(false);
-      setIsEnrichingKeywords(false);
     }
   };
 
+  // Generate or update content based on selected keywords
   const generateContent = async () => {
-    const selectedKeywords = keywords.filter(k => k.selected);
+    const selectedKeywords = suggestedKeywords.filter(k => k.selected).map(k => k.keyword);
+    const usedKeywordsList = usedKeywords.map(k => k.keyword);
+    const allKeywords = [...selectedKeywords, ...usedKeywordsList];
     
-    if (selectedKeywords.length === 0 || !topic) {
+    if (allKeywords.length === 0) {
+      alert('Please select at least one keyword to generate content');
       return;
     }
 
     setIsGeneratingContent(true);
+    
     try {
-      const response = await fetch('/api/generate', {
+      const requestBody = {
+        topic,
+        keywords: allKeywords,
+        existingContent: content,
+        isUpdate: content.length > 0
+      };
+
+      const response = await fetch('/api/content/generate', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          topic,
-          keywords: selectedKeywords,
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
@@ -164,129 +161,313 @@ export default function Home() {
 
       const data = await response.json();
       setContent(data.content);
-      setIsRegenerating(true);
+      
+      // Move selected suggested keywords to used keywords
+      const newlyUsedKeywords = suggestedKeywords.filter(k => k.selected);
+      setUsedKeywords(prev => [...prev, ...newlyUsedKeywords]);
+      setSuggestedKeywords(prev => prev.filter(k => !k.selected));
+      
+      // After content is generated, analyze it to extract more keywords
+      await analyzeContent(data.content);
     } catch (error) {
       console.error('Error generating content:', error);
-      alert('Failed to generate content. Please try again.');
     } finally {
       setIsGeneratingContent(false);
     }
   };
 
-  const handleKeywordRemoved = useCallback((removedKeyword: string) => {
-    setKeywords(prevKeywords => 
-      prevKeywords.map(keyword => 
-        keyword.keyword.toLowerCase() === removedKeyword.toLowerCase()
-          ? { ...keyword, selected: false }
-          : keyword
-      )
-    );
-  }, []);
+  // Analyze content to extract used keywords
+  const analyzeContent = async (contentText: string) => {
+    if (!contentText.trim()) return;
+    
+    setIsAnalyzingContent(true);
+    
+    try {
+      const response = await fetch('/api/keywords/extract', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: contentText, topic }),
+      });
 
-  const handleKeywordsChange = (updatedKeywords: Keyword[]) => {
-    setKeywords(updatedKeywords);
+      if (!response.ok) {
+        throw new Error('Failed to analyze content');
+      }
+
+      const data = await response.json();
+      
+      // Extract new keywords that aren't already in usedKeywords
+      const existingKeywordTexts = usedKeywords.map(k => k.keyword.toLowerCase());
+      const newKeywords = data.keywords.filter((k: any) => 
+        !existingKeywordTexts.includes(k.keyword.toLowerCase())
+      );
+      
+      // Enrich and add new keywords to usedKeywords
+      for (const keyword of newKeywords) {
+        setUsedKeywords(prev => [...prev, {
+          keyword: keyword.keyword,
+          volume: 0,
+          difficulty: 0,
+          cpc: 0,
+          selected: true,
+          metricsLoading: true,
+          source: 'extracted'
+        }]);
+
+        // Enrich keyword with metrics
+        try {
+          const response = await fetch('/api/keywords/single', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ keyword: keyword.keyword }),
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            
+            setUsedKeywords(prev => {
+              const newUsedKeywords = [...prev];
+              const keywordIndex = newUsedKeywords.findIndex(k => 
+                k.keyword.toLowerCase() === keyword.keyword.toLowerCase() && k.source === 'extracted'
+              );
+              
+              if (keywordIndex >= 0 && data.metrics) {
+                newUsedKeywords[keywordIndex] = {
+                  ...newUsedKeywords[keywordIndex],
+                  volume: data.metrics.volume || 0,
+                  difficulty: data.metrics.difficulty || 0,
+                  cpc: data.metrics.cpc || 0,
+                  metricsLoading: false,
+                  source: 'similarweb'
+                };
+              } else if (keywordIndex >= 0) {
+                newUsedKeywords[keywordIndex] = {
+                  ...newUsedKeywords[keywordIndex],
+                  metricsLoading: false
+                };
+              }
+              
+              return newUsedKeywords;
+            });
+          }
+        } catch (error) {
+          console.error(`Error enriching extracted keyword "${keyword.keyword}":`, error);
+        }
+      }
+      
+      // Find more related keywords based on the analyzed content
+      fetchMoreKeywords();
+    } catch (error) {
+      console.error('Error analyzing content:', error);
+    } finally {
+      setIsAnalyzingContent(false);
+    }
   };
 
-  const handleContentChange = (updatedContent: string) => {
-    setContent(updatedContent);
+  // Fetch more keyword suggestions based on used keywords
+  const fetchMoreKeywords = async () => {
+    if (!topic) return;
+    
+    try {
+      const usedKeywordsList = usedKeywords.map(k => k.keyword);
+      
+      const response = await fetch('/api/keywords/more', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          topic, 
+          usedKeywords: usedKeywordsList,
+          negativeKeywords: negativeKeywords.map(k => k.keyword)
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch more keywords');
+      }
+
+      const data = await response.json();
+      
+      // Filter out keywords that are already in used or suggested lists
+      const existingKeywords = [
+        ...suggestedKeywords.map(k => k.keyword.toLowerCase()),
+        ...usedKeywords.map(k => k.keyword.toLowerCase()),
+        ...negativeKeywords.map(k => k.keyword.toLowerCase())
+      ];
+      
+      const newKeywords = data.keywords
+        .filter((k: any) => !existingKeywords.includes(k.keyword.toLowerCase()))
+        .map((keyword: any) => ({
+          keyword: keyword.keyword,
+          volume: 0,
+          difficulty: 0,
+          cpc: 0,
+          selected: false,
+          metricsLoading: true,
+          source: 'openai'
+        }));
+      
+      if (newKeywords.length > 0) {
+        setSuggestedKeywords(prev => [...prev, ...newKeywords]);
+        
+        // Enrich the new keywords
+        for (let i = 0; i < newKeywords.length; i++) {
+          const keyword = newKeywords[i];
+          try {
+            const response = await fetch('/api/keywords/single', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ keyword: keyword.keyword }),
+            });
+            
+            if (response.ok) {
+              const data = await response.json();
+              
+              if (data.metrics) {
+                // Update the keyword with metrics
+                setSuggestedKeywords(prevKeywords => {
+                  const newSuggestedKeywords = [...prevKeywords];
+                  const keywordIndex = newSuggestedKeywords.findIndex(k => 
+                    k.keyword.toLowerCase() === keyword.keyword.toLowerCase()
+                  );
+                  
+                  if (keywordIndex >= 0) {
+                    newSuggestedKeywords[keywordIndex] = {
+                      ...newSuggestedKeywords[keywordIndex],
+                      volume: data.metrics.volume || 0,
+                      difficulty: data.metrics.difficulty || 0,
+                      cpc: data.metrics.cpc || 0,
+                      metricsLoading: false,
+                      source: 'similarweb'
+                    };
+                  }
+                  
+                  return newSuggestedKeywords;
+                });
+              } else {
+                // Mark as loaded but keep OpenAI data
+                setSuggestedKeywords(prevKeywords => {
+                  const newSuggestedKeywords = [...prevKeywords];
+                  const keywordIndex = newSuggestedKeywords.findIndex(k => 
+                    k.keyword.toLowerCase() === keyword.keyword.toLowerCase()
+                  );
+                  
+                  if (keywordIndex >= 0) {
+                    newSuggestedKeywords[keywordIndex] = {
+                      ...newSuggestedKeywords[keywordIndex],
+                      metricsLoading: false
+                    };
+                  }
+                  
+                  return newSuggestedKeywords;
+                });
+              }
+            }
+          } catch (error) {
+            console.error(`Error enriching keyword "${keyword.keyword}":`, error);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching more keywords:', error);
+    }
+  };
+
+  // Handle topic submission
+  const handleTopicSubmit = (topicValue: string) => {
+    setTopic(topicValue);
+    setContent('');
+    setUsedKeywords([]);
+    setNegativeKeywords([]);
+    fetchKeywords(topicValue);
+  };
+
+  // Handle selecting/deselecting suggested keywords
+  const handleSuggestedKeywordToggle = (keyword: Keyword) => {
+    setSuggestedKeywords(prev => 
+      prev.map(k => k.keyword === keyword.keyword ? { ...k, selected: !k.selected } : k)
+    );
+  };
+
+  // Move keyword to negative list
+  const handleAddToNegative = (keyword: Keyword, source: 'suggested' | 'used') => {
+    // Remove from original source
+    if (source === 'suggested') {
+      setSuggestedKeywords(prev => prev.filter(k => k.keyword !== keyword.keyword));
+    } else {
+      setUsedKeywords(prev => prev.filter(k => k.keyword !== keyword.keyword));
+    }
+    
+    // Add to negative keywords
+    setNegativeKeywords(prev => [...prev, { ...keyword, selected: false }]);
+  };
+
+  // Remove from negative keywords
+  const handleRemoveFromNegative = (keyword: Keyword) => {
+    setNegativeKeywords(prev => prev.filter(k => k.keyword !== keyword.keyword));
+    setSuggestedKeywords(prev => [...prev, { ...keyword, selected: false }]);
+  };
+
+  // Handle content changes
+  const handleContentChange = (newContent: string) => {
+    setContent(newContent);
   };
 
   return (
-    <main className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-[1600px] w-full mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header Section */}
-        <header className="text-center mb-6">
-          <h1 className="text-4xl font-extrabold text-gray-900 sm:text-5xl">
-            AI-Powered SEO Content Editor
-          </h1>
-        </header>
-
-        {/* Instructions Section */}
-        <section className="bg-blue-50 border-l-4 border-blue-400 p-4 mb-6 rounded-md max-w-6xl mx-auto">
-          <div className="flex">
-            <div className="flex-shrink-0">
-              <FiInfo className="h-6 w-6 text-blue-600 sidebar-icon" />
-            </div>
-            <div className="ml-4">
-              <h2 className="text-lg font-semibold text-gray-900 mb-2">How it works</h2>
-              <p className="text-base text-gray-900">
-                Enter a topic to get keyword suggestions, select the keywords you want to include,
-                and generate SEO-optimized content. You can edit the generated content and the
-                keywords will stay highlighted.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        {/* Two-Column Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-7 gap-6 lg:gap-8 lg:min-h-[800px]">
-          {/* Left Column - Keywords */}
-          <section className="lg:col-span-1 xl:col-span-2 flex flex-col">
-            <div className="bg-white p-5 rounded-lg shadow-md h-full flex flex-col stats-card">
-              {/* Topic Input */}
-              <div>
-                <h3 className="text-2xl font-normal text-gray-900 mb-4">Topic</h3>
-                <TopicInput onSubmit={fetchKeywords} isLoading={isLoadingKeywords} />
-              </div>
-              
-              {/* Keywords */}
-              <div className="mt-6 flex-grow">
-                <KeywordSelector
-                  topic={topic}
-                  keywords={keywords}
-                  onKeywordsChange={handleKeywordsChange}
-                  isLoading={isLoadingKeywords}
-                  isEnriching={isEnrichingKeywords}
-                />
-              </div>
-            </div>
-          </section>
-
-          {/* Right Column - Editor */}
-          <section className="lg:col-span-2 xl:col-span-5 flex flex-col">
-            <div className="bg-white rounded-lg shadow-md h-full flex flex-col stats-card">
-              {/* Generate Button */}
-              <div className="mb-8">
-                <GenerateButton
-                  onGenerate={generateContent}
-                  isGenerating={isGeneratingContent}
-                  isRegenerating={isRegenerating}
-                  hasSelectedKeywords={keywords.some(k => k.selected)}
-                  hasTopic={!!topic}
-                />
-              </div>
-              
-              {/* Content Editor */}
-              <div className="flex-grow">
-                <ContentEditor
-                  content={content}
-                  keywords={keywords}
-                  onContentChange={handleContentChange}
-                  onKeywordRemoved={handleKeywordRemoved}
-                  isLoading={isGeneratingContent}
-                />
-              </div>
-            </div>
-          </section>
+    <main className="container mx-auto px-4 py-8">
+      <h1 className="text-3xl font-bold mb-8 text-center">AI-Powered SEO Content Editor</h1>
+      
+      <div className="mb-6">
+        <TopicInput onSubmit={handleTopicSubmit} isLoading={isLoadingKeywords} />
+      </div>
+      
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-1">
+          <KeywordBank 
+            suggestedKeywords={suggestedKeywords}
+            usedKeywords={usedKeywords}
+            negativeKeywords={negativeKeywords}
+            onSuggestedKeywordToggle={handleSuggestedKeywordToggle}
+            onAddToNegative={handleAddToNegative}
+            onRemoveFromNegative={handleRemoveFromNegative}
+            isLoading={isLoadingKeywords}
+          />
         </div>
+        
+        <div className="lg:col-span-2">
+          <div className="border border-gray-300 rounded-md p-4 mb-4">
+            <ContentEditor 
+              content={content} 
+              onContentChange={handleContentChange}
+              isLoading={isGeneratingContent}
+            />
+          </div>
+          
+          <div className="flex justify-center">
+            <GenerateButton 
+              onClick={generateContent} 
+              isLoading={isGeneratingContent || isAnalyzingContent}
+              isDisabled={!topic || (suggestedKeywords.filter(k => k.selected).length === 0 && usedKeywords.length === 0)}
+              label={content ? "Improve Content" : "Generate Content"}
+            />
+          </div>
+        </div>
+      </div>
 
-        <div className="mt-6 text-center">
-          <div className="p-4 bg-gray-100 rounded-lg max-w-3xl mx-auto">
-            <h3 className="text-lg font-semibold text-gray-800 mb-2">Developer Tools</h3>
-            <div className="flex flex-col sm:flex-row justify-center gap-4">
-              <Link 
-                href="/test-tools" 
-                className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-4 py-2 rounded-md border border-blue-200 transition-colors"
-              >
-                SEO Assistant Tools
-              </Link>
-              <Link 
-                href="/test-tools/diagnostic" 
-                className="text-green-600 hover:text-green-800 hover:bg-green-50 px-4 py-2 rounded-md border border-green-200 transition-colors"
-              >
-                Assistant Diagnostic Tool
-              </Link>
-            </div>
+      <div className="mt-6 text-center">
+        <div className="p-4 bg-gray-100 rounded-lg max-w-3xl mx-auto">
+          <h3 className="text-lg font-semibold text-gray-800 mb-2">Developer Tools</h3>
+          <div className="flex flex-col sm:flex-row justify-center gap-4">
+            <Link 
+              href="/test-tools" 
+              className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-4 py-2 rounded-md border border-blue-200 transition-colors"
+            >
+              SEO Assistant Tools
+            </Link>
+            <Link 
+              href="/test-tools/diagnostic" 
+              className="text-green-600 hover:text-green-800 hover:bg-green-50 px-4 py-2 rounded-md border border-green-200 transition-colors"
+            >
+              Assistant Diagnostic Tool
+            </Link>
           </div>
         </div>
       </div>

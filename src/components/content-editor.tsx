@@ -5,15 +5,13 @@ import StarterKit from '@tiptap/starter-kit';
 import Highlight from '@tiptap/extension-highlight';
 import TextStyle from '@tiptap/extension-text-style';
 import Color from '@tiptap/extension-color';
-import { useEffect, useState } from 'react';
-import { Keyword } from './keyword-selector';
-import { FiLoader, FiType, FiBold, FiItalic } from 'react-icons/fi';
+import Link from '@tiptap/extension-link';
+import { useEffect } from 'react';
+import { FiLoader, FiType, FiBold, FiItalic, FiList, FiLink, FiCode } from 'react-icons/fi';
 
 interface ContentEditorProps {
   content: string;
-  keywords: Keyword[];
   onContentChange: (content: string) => void;
-  onKeywordRemoved: (keyword: string) => void;
   isLoading: boolean;
 }
 
@@ -28,7 +26,7 @@ const MenuBar = ({ editor }: { editor: Editor | null }) => {
         <button
           onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
           className={`p-1.5 rounded hover:bg-gray-100 ${
-            editor.isActive('heading', { level: 1 }) ? 'active' : 'border border-gray-300 text-gray-700'
+            editor.isActive('heading', { level: 1 }) ? 'bg-blue-50 text-blue-600 border border-blue-300' : 'border border-gray-300 text-gray-700'
           }`}
           title="Heading 1"
         >
@@ -37,7 +35,7 @@ const MenuBar = ({ editor }: { editor: Editor | null }) => {
         <button
           onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
           className={`p-1.5 rounded hover:bg-gray-100 ${
-            editor.isActive('heading', { level: 2 }) ? 'active' : 'border border-gray-300 text-gray-700'
+            editor.isActive('heading', { level: 2 }) ? 'bg-blue-50 text-blue-600 border border-blue-300' : 'border border-gray-300 text-gray-700'
           }`}
           title="Heading 2"
         >
@@ -46,7 +44,7 @@ const MenuBar = ({ editor }: { editor: Editor | null }) => {
         <button
           onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
           className={`p-1.5 rounded hover:bg-gray-100 ${
-            editor.isActive('heading', { level: 3 }) ? 'active' : 'border border-gray-300 text-gray-700'
+            editor.isActive('heading', { level: 3 }) ? 'bg-blue-50 text-blue-600 border border-blue-300' : 'border border-gray-300 text-gray-700'
           }`}
           title="Heading 3"
         >
@@ -55,7 +53,7 @@ const MenuBar = ({ editor }: { editor: Editor | null }) => {
         <button
           onClick={() => editor.chain().focus().setParagraph().run()}
           className={`p-1.5 rounded hover:bg-gray-100 ${
-            editor.isActive('paragraph') ? 'active' : 'border border-gray-300 text-gray-700'
+            editor.isActive('paragraph') ? 'bg-blue-50 text-blue-600 border border-blue-300' : 'border border-gray-300 text-gray-700'
           }`}
           title="Paragraph"
         >
@@ -63,11 +61,11 @@ const MenuBar = ({ editor }: { editor: Editor | null }) => {
         </button>
       </div>
 
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1 border-r border-gray-300 pr-2 mr-2">
         <button
           onClick={() => editor.chain().focus().toggleBold().run()}
           className={`p-1.5 rounded hover:bg-gray-100 ${
-            editor.isActive('bold') ? 'active' : 'border border-gray-300 text-gray-700'
+            editor.isActive('bold') ? 'bg-blue-50 text-blue-600 border border-blue-300' : 'border border-gray-300 text-gray-700'
           }`}
           title="Bold"
         >
@@ -76,183 +74,112 @@ const MenuBar = ({ editor }: { editor: Editor | null }) => {
         <button
           onClick={() => editor.chain().focus().toggleItalic().run()}
           className={`p-1.5 rounded hover:bg-gray-100 ${
-            editor.isActive('italic') ? 'active' : 'border border-gray-300 text-gray-700'
+            editor.isActive('italic') ? 'bg-blue-50 text-blue-600 border border-blue-300' : 'border border-gray-300 text-gray-700'
           }`}
           title="Italic"
         >
           <FiItalic size={18} />
         </button>
       </div>
+
+      <div className="flex items-center gap-1">
+        <button
+          onClick={() => editor.chain().focus().toggleBulletList().run()}
+          className={`p-1.5 rounded hover:bg-gray-100 ${
+            editor.isActive('bulletList') ? 'bg-blue-50 text-blue-600 border border-blue-300' : 'border border-gray-300 text-gray-700'
+          }`}
+          title="Bullet List"
+        >
+          <FiList size={18} />
+        </button>
+        <button
+          onClick={() => {
+            const url = window.prompt('Enter URL');
+            if (url) {
+              editor.commands.setLink({ href: url });
+            }
+          }}
+          className={`p-1.5 rounded hover:bg-gray-100 ${
+            editor.isActive('link') ? 'bg-blue-50 text-blue-600 border border-blue-300' : 'border border-gray-300 text-gray-700'
+          }`}
+          title="Add Link"
+        >
+          <FiLink size={18} />
+        </button>
+        <button
+          onClick={() => editor.chain().focus().toggleCodeBlock().run()}
+          className={`p-1.5 rounded hover:bg-gray-100 ${
+            editor.isActive('codeBlock') ? 'bg-blue-50 text-blue-600 border border-blue-300' : 'border border-gray-300 text-gray-700'
+          }`}
+          title="Code Block"
+        >
+          <FiCode size={18} />
+        </button>
+      </div>
     </div>
   );
 };
 
-// Helper function to check and fix HTML content
-function ensureValidContent(content: string): string {
-  // If content is empty, return an empty string
-  if (!content) return '';
-  
-  // Check if content has heading tags but they're not being rendered properly
-  const hasH1 = content.includes('<h1>') || content.includes('<h1 ');
-  const hasH2 = content.includes('<h2>') || content.includes('<h2 ');
-  const hasH3 = content.includes('<h3>') || content.includes('<h3 ');
-  
-  console.log('Content analysis:', { hasH1, hasH2, hasH3, length: content.length });
-  
-  // Return the content as is
-  return content;
-}
-
-// Custom CSS for editor to ensure headings display properly
-const editorStyles = `
-  .ProseMirror h1 {
-    font-size: 2rem !important;
-    font-weight: 700 !important;
-    margin-top: 1.5rem !important;
-    margin-bottom: 1rem !important;
-    color: #111827 !important;
-  }
-  
-  .ProseMirror h2 {
-    font-size: 1.5rem !important;
-    font-weight: 600 !important;
-    margin-top: 1.25rem !important;
-    margin-bottom: 0.75rem !important;
-    color: #1f2937 !important;
-  }
-  
-  .ProseMirror h3 {
-    font-size: 1.25rem !important;
-    font-weight: 600 !important;
-    margin-top: 1rem !important;
-    margin-bottom: 0.5rem !important;
-    color: #374151 !important;
-  }
-  
-  .ProseMirror p {
-    margin-bottom: 0.75rem !important;
-  }
-`;
-
 export default function ContentEditor({
   content,
-  keywords,
   onContentChange,
-  onKeywordRemoved,
   isLoading,
 }: ContentEditorProps) {
-  const [highlightedContent, setHighlightedContent] = useState('');
-  const [editorReady, setEditorReady] = useState(false);
-
-  // Highlight keywords in the content
-  useEffect(() => {
-    if (!content) {
-      setHighlightedContent('');
-      return;
-    }
-
-    // First ensure the content is valid
-    const validContent = ensureValidContent(content);
-    
-    let processedContent = validContent;
-    const selectedKeywords = keywords.filter(k => k.selected).map(k => k.keyword);
-
-    // Sort keywords by length (longest first) to avoid partial matches
-    selectedKeywords.sort((a, b) => b.length - a.length);
-
-    // Replace keywords with highlighted versions
-    selectedKeywords.forEach(keyword => {
-      const regex = new RegExp(`\\b${keyword}\\b`, 'gi');
-      processedContent = processedContent.replace(
-        regex,
-        `<span style="background-color: #e9f5ff; color: #0066cc; padding: 0 2px; border-radius: 2px;">${keyword}</span>`
-      );
-    });
-
-    setHighlightedContent(processedContent);
-  }, [content, keywords]);
-
-  // Check if keywords are removed from content
-  useEffect(() => {
-    if (!content) return;
-
-    const selectedKeywords = keywords.filter(k => k.selected);
-    
-    selectedKeywords.forEach(keywordObj => {
-      const keyword = keywordObj.keyword;
-      const regex = new RegExp(`\\b${keyword}\\b`, 'i');
-      
-      if (!regex.test(content)) {
-        // Keyword was removed from content
-        onKeywordRemoved(keyword);
-      }
-    });
-  }, [content, keywords, onKeywordRemoved]);
-
+  // Configure the editor
   const editor = useEditor({
     extensions: [
-      StarterKit.configure({
-        heading: {
-          levels: [1, 2, 3],
-        },
-      }),
-      Highlight,
+      StarterKit,
       TextStyle,
       Color,
+      Highlight.configure({ multicolor: true }),
+      Link.configure({
+        openOnClick: false,
+      }),
     ],
-    content: '',
+    content: content || '<p>Your content will appear here after generation</p>',
     onUpdate: ({ editor }) => {
       onContentChange(editor.getHTML());
     },
     editorProps: {
       attributes: {
-        class: 'prose prose-lg max-w-none focus:outline-none',
+        class: 'outline-none prose prose-sm sm:prose lg:prose-lg prose-slate prose-h1:text-xl prose-h2:text-lg prose-h3:text-base mx-auto focus:outline-none min-h-[300px] max-w-none',
       },
-    },
-    // Fix for SSR hydration issue
-    immediatelyRender: false,
-    parseOptions: {
-      preserveWhitespace: 'full',
     },
   });
 
-  // Set editor ready state once editor is available
+  // Update content when it changes from props
+  useEffect(() => {
+    if (editor && content !== editor.getHTML()) {
+      editor.commands.setContent(content);
+    }
+  }, [content, editor]);
+
+  // Make editor read-only when loading
   useEffect(() => {
     if (editor) {
-      setEditorReady(true);
+      editor.setEditable(!isLoading);
     }
-  }, [editor]);
-
-  // Update content when editor is ready and content changes
-  useEffect(() => {
-    if (editor && editorReady && highlightedContent) {
-      editor.commands.setContent(highlightedContent, false);
-    }
-  }, [editor, editorReady, highlightedContent]);
+  }, [isLoading, editor]);
 
   return (
-    <div className="bg-white rounded-lg shadow-md p-4 relative stats-card">
-      <style>{editorStyles}</style>
-      <div className="border border-gray-400 rounded-md p-4 min-h-[650px]">
-        {isLoading ? (
-          <div className="absolute inset-0 bg-white bg-opacity-80 flex items-center justify-center z-10">
-            <div className="flex flex-col items-center">
-              <FiLoader className="animate-spin text-blue-600 text-2xl mb-2 loading-spinner" />
-              <span className="text-gray-900">Generating content...</span>
+    <div className="content-editor-container">
+      <h3 className="font-medium text-gray-800 mb-4 text-lg">Content Editor</h3>
+      
+      {editor && <MenuBar editor={editor} />}
+      
+      <div className={`relative ${isLoading ? 'opacity-70' : ''}`}>
+        {isLoading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-50 z-10">
+            <div className="bg-white p-4 rounded-lg shadow-md flex items-center">
+              <FiLoader className="animate-spin text-blue-500 mr-3" size={24} />
+              <span className="text-blue-600 font-medium">Generating content...</span>
             </div>
           </div>
-        ) : null}
-        <MenuBar editor={editor} />
-        <EditorContent 
-          editor={editor} 
-          className="prose max-w-none text-gray-900 ProseMirror"
-        />
-      </div>
-      <div className="mt-4 text-sm text-gray-900">
-        <p>
-          <span className="font-medium">Keywords used:</span>{' '}
-          {keywords.filter(k => k.selected).length} of {keywords.length}
-        </p>
+        )}
+        
+        <div className="border border-gray-200 rounded-md p-4 min-h-[500px] bg-white">
+          <EditorContent editor={editor} />
+        </div>
       </div>
     </div>
   );

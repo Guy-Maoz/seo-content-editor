@@ -3,49 +3,40 @@
 import { FiFileText, FiRefreshCw } from 'react-icons/fi';
 
 interface GenerateButtonProps {
-  onGenerate: () => void;
-  isGenerating: boolean;
-  isRegenerating: boolean;
-  hasSelectedKeywords: boolean;
-  hasTopic: boolean;
+  onClick: () => void;
+  isLoading: boolean;
+  isDisabled: boolean;
+  label: string;
 }
 
 export default function GenerateButton({
-  onGenerate,
-  isGenerating,
-  isRegenerating,
-  hasSelectedKeywords,
-  hasTopic,
+  onClick,
+  isLoading,
+  isDisabled,
+  label,
 }: GenerateButtonProps) {
-  const isDisabled = isGenerating || !hasSelectedKeywords || !hasTopic;
-
   return (
     <div>
       <button
-        onClick={onGenerate}
-        disabled={isDisabled}
-        className="w-full flex items-center justify-center px-6 py-2.5 border border-transparent text-base font-normal rounded-md text-white bg-blue-400 hover:bg-blue-500 focus:outline-none disabled:bg-blue-300 disabled:cursor-not-allowed"
+        onClick={onClick}
+        disabled={isDisabled || isLoading}
+        className="flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-500 hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-300 disabled:bg-blue-300 disabled:cursor-not-allowed shadow-sm transition-colors"
       >
-        {isGenerating ? (
+        {isLoading ? (
           <>
-            <FiRefreshCw className="animate-spin mr-2 loading-spinner" size={18} />
-            {isRegenerating ? 'Regenerating Content...' : 'Generating Content...'}
+            <FiRefreshCw className="animate-spin mr-2" size={18} />
+            Processing...
           </>
         ) : (
           <>
             <FiFileText className="mr-2" size={18} />
-            {isRegenerating ? 'Regenerate Content' : 'Generate Content'}
+            {label}
           </>
         )}
       </button>
-      {!hasSelectedKeywords && hasTopic && (
-        <p className="mt-2 text-sm text-amber-600 font-medium">
-          Please select at least one keyword to generate content.
-        </p>
-      )}
-      {!hasTopic && (
-        <p className="mt-2 text-sm text-amber-600 font-medium">
-          Please enter a topic to generate content.
+      {isDisabled && !isLoading && (
+        <p className="mt-2 text-sm text-amber-600 font-medium text-center">
+          Please select keywords to generate content
         </p>
       )}
     </div>
