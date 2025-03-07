@@ -13,34 +13,6 @@ function logWarning(message: string) {
 const SIMILARWEB_API_KEY = process.env.SIMILARWEB_API_KEY || 'd14923977f194036a9c41c5d924fd9ec';
 const SIMILARWEB_BASE_URL = 'https://api.similarweb.com/v4';
 
-// Check if a keyword looks like nonsense
-function isLikelyNonsenseKeyword(keyword: string) {
-  // Convert to lowercase for consistent checking
-  const lowerKeyword = keyword.toLowerCase();
-  
-  // Check for obvious nonsense patterns
-  const nonsensePatterns = [
-    /^(blah?|bla)\s+(blah?|bla)/, // "bla bla", "blah blah"
-    /^(asdf|qwerty|zxcv)/, // Keyboard patterns
-    /^test\s+test/, // "test test"
-    /^(foo|bar|baz|foobar)/, // Programming placeholder terms
-    /[^\s\w]$/ // Contains special characters
-  ];
-  
-  for (const pattern of nonsensePatterns) {
-    if (pattern.test(lowerKeyword)) {
-      return true;
-    }
-  }
-  
-  // Check for random strings with no spaces (likely meaningless)
-  if (lowerKeyword.length > 10 && !lowerKeyword.includes(' ') && /[^a-z]/.test(lowerKeyword)) {
-    return true;
-  }
-  
-  return false;
-}
-
 export async function POST(request: Request) {
   try {
     const { keyword } = await request.json();
@@ -93,12 +65,6 @@ export async function POST(request: Request) {
 }
 
 async function getKeywordMetricsFromSimilarWeb(keyword: string) {
-  // Check for nonsense keywords first to skip API call completely
-  if (isLikelyNonsenseKeyword(keyword)) {
-    console.log(`Detected likely nonsense keyword: "${keyword}" - skipping API call and using fallback`);
-    return generateFallbackMetrics(keyword);
-  }
-  
   try {
     // Format the keyword for the URL
     const encodedKeyword = encodeURIComponent(keyword);
