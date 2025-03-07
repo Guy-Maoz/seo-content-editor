@@ -96,8 +96,15 @@ export async function GET(request: Request) {
             // The assistant is using our tool!
             const args = JSON.parse(toolCall.function.arguments);
             
+            // Set base URL depending on environment
+            const baseUrl = process.env.NODE_ENV === 'production' 
+              ? 'https://seo-content-editor.netlify.app' 
+              : `http://localhost:${process.env.PORT || 3000}`;
+            
+            console.log(`Diagnostic calling keyword metrics API for: "${args.keyword}"`);
+            
             // Call our keyword metrics API to get real data
-            const keywordMetricsResponse = await fetch(`http://localhost:${process.env.PORT || 3000}/api/tools/keyword-metrics`, {
+            const keywordMetricsResponse = await fetch(`${baseUrl}/api/tools/keyword-metrics`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ keyword: args.keyword })

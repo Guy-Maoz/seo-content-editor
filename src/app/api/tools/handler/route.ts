@@ -165,17 +165,25 @@ export async function POST(request: Request) {
 // Function to handle keyword metrics tool call
 async function handleGetKeywordMetrics(keyword: string): Promise<KeywordMetricsResponse> {
   try {
-    // Call our keyword metrics API directly since we're on the server
-    const response = await fetch(`/api/tools/keyword-metrics`, {
+    // Use localhost with the correct port for server-side fetch
+    // Since we don't know which port Next.js is running on, we'll use environment port or try common ports
+    const baseUrl = process.env.NODE_ENV === 'production' 
+      ? 'https://seo-content-editor.netlify.app' 
+      : 'http://localhost:3000';
+    
+    console.log(`Fetching keyword metrics via tool handler for: "${keyword}"`);
+    
+    // Call our keyword metrics API with proper absolute URL and headers
+    const response = await fetch(`${baseUrl}/api/tools/keyword-metrics`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'Host': 'localhost:3000'
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({ keyword })
     });
     
     if (!response.ok) {
+      console.error(`Keyword metrics API returned status ${response.status}`);
       // If API call fails, generate fallback metrics
       return generateFallbackMetrics(keyword);
     }
@@ -189,7 +197,7 @@ async function handleGetKeywordMetrics(keyword: string): Promise<KeywordMetricsR
     
     return data as KeywordMetricsResponse;
   } catch (error: any) {
-    console.error('Error in get_keyword_metrics function:', error);
+    console.error('Error in get_keyword_metrics function:', error.message || error);
     return generateFallbackMetrics(keyword);
   }
 }
