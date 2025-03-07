@@ -100,11 +100,11 @@ function transformSimilarwebData(data: any, mainKeyword: string) {
 
   const keywordData = data.response;
   
-  // If we have zero volume, treat as fallback case
-  const isEffectivelyFallback = !keywordData.volume || keywordData.volume === 0;
+  // Don't treat zero volume as fallback anymore
+  const isEffectivelyFallback = false;
   
-  if (isEffectivelyFallback) {
-    logWarning(`Zero volume data from SimilarWeb for "${mainKeyword}" - treating as fallback`);
+  if (keywordData.volume === 0) {
+    console.log(`Zero volume data from SimilarWeb for "${mainKeyword}" - keeping as real data`);
   }
   
   // Create a formatted keyword object

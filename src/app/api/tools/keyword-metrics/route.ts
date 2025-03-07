@@ -84,9 +84,11 @@ async function getKeywordMetricsFromSimilarWeb(keyword: string): Promise<Similar
       return generateFallbackMetrics(keyword);
     }
     
-    // If we got all zeros, use the fallback instead
+    // Only use fallback if we have zeros across all metrics AND we suspect it's an API error
+    // Keep actual zero volume as real data
     if (metrics.volume === 0 && metrics.difficulty === 0 && metrics.cpc === 0) {
-      return generateFallbackMetrics(keyword);
+      console.log(`Zero metrics found for "${keyword}" - using real values not fallback`);
+      metrics.isFallback = false;
     }
     
     return metrics;

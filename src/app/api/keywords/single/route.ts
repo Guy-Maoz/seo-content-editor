@@ -34,17 +34,15 @@ export async function POST(request: Request) {
     const metrics = await getKeywordMetricsFromSimilarWeb(keyword);
     
     // Force manual console.error to ensure it shows in terminal
-    if (metrics.volume === 0 || metrics.isFallback) {
+    if (metrics.isFallback) {
       // This will DEFINITELY show in terminal
-      console.error(`\n⚠️⚠️⚠️ FALLBACK USED for "${keyword}": API returned zeros or failed ⚠️⚠️⚠️`);
-      
-      // Mark as fallback if volume is zero
-      if (metrics.volume === 0 && !metrics.isFallback) {
-        metrics.isFallback = true;
-      }
+      console.error(`\n⚠️⚠️⚠️ FALLBACK USED for "${keyword}": API failed ⚠️⚠️⚠️`);
       
       // Normal warning that might be affected by logger settings
       logWarning(`FALLBACK DATA USED for "${keyword}": volume=${metrics.volume}, difficulty=${metrics.difficulty}, cpc=${metrics.cpc}`);
+    } else if (metrics.volume === 0) {
+      // Special note when real value is zero
+      console.log(`\x1b[33m%s\x1b[0m`, `ℹ️ Zero volume found for "${keyword}": This keyword has no search traffic according to SimilarWeb`);
     } else {
       console.log(`✅ Real data found for "${keyword}": volume=${metrics.volume}`);
     }
@@ -114,10 +112,10 @@ async function getKeywordMetricsFromSimilarWeb(keyword: string) {
       return generateFallbackMetrics(keyword);
     }
     
-    // If we got all zeros or very low values, use the fallback instead
-    // This is the key fix - detecting "success" responses with meaningless data
-    if (metrics.volume === 0 || (metrics.volume < 10 && metrics.difficulty === 0 && metrics.cpc === 0)) {
-      console.log(`SimilarWeb API returned zeros or near-zeros for "${keyword}" - using fallback instead`);
+    // Only use fallback if we have near-zero values across all metrics (likely API error)
+    // But keep actual zero volume as real data
+    if (metrics.volume < 10 && metrics.difficulty === 0 && metrics.cpc === 0) {
+      console.log(`SimilarWeb API returned near-zeros for "${keyword}" - using fallback instead`);
       return generateFallbackMetrics(keyword);
     }
     
