@@ -17,7 +17,7 @@ export default function TestToolsPage() {
     setResponse('');
     
     try {
-      const res = await fetch('/api/tools/handler', {
+      const res = await fetch('/.netlify/functions/tools-handler', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
