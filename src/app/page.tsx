@@ -182,7 +182,7 @@ export default function Home() {
     setIsAnalyzingContent(true);
     
     try {
-      const response = await fetch('/api/keywords/extract', {
+      const response = await fetch('/.netlify/functions/keywords-extract', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content: contentText, topic }),
