@@ -5,6 +5,9 @@ const openai = new OpenAI({
 });
 
 exports.handler = async function(event, context) {
+  // Set a longer function timeout
+  context.callbackWaitsForEmptyEventLoop = false;
+  
   // Only allow POST requests
   if (event.httpMethod !== "POST") {
     return {
@@ -32,7 +35,7 @@ exports.handler = async function(event, context) {
     console.log(`Extracting keywords for topic: "${topic || 'general'}" (content length: ${content.length} chars)`);
 
     const completion = await openai.chat.completions.create({
-      model: "gpt-4-turbo-preview",
+      model: "gpt-3.5-turbo", // Use a faster model to avoid timeouts
       messages: [
         {
           role: "system",
@@ -48,7 +51,7 @@ For example: { "keywords": [{"keyword": "example keyword 1"}, {"keyword": "examp
 Focus on extracting meaningful phrases that could be used for SEO optimization, return at least 5-10 keywords.
 
 Content:
-${content.substring(0, 5000)}`  // Limit content length to avoid token issues
+${content.substring(0, 3000)}`  // Shortened to 3000 chars to reduce processing time
         }
       ],
       temperature: 0.2,

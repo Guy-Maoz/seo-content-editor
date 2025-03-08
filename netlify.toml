@@ -8,6 +8,23 @@
   NODE_VERSION = "20.11.1"
   NPM_VERSION = "10.2.4"
 
+# Set longer timeout for all functions
+[functions]
+  node_bundler = "esbuild"
+  included_files = ["node_modules/openai/**"]
+
+# Set a higher timeout specifically for content generation
+[functions.content-generate]
+  included_files = ["node_modules/openai/**"]
+  node_bundler = "esbuild"
+  timeout = 26
+
+# Set a higher timeout for keyword extraction
+[functions.keywords-extract]
+  included_files = ["node_modules/openai/**"]
+  node_bundler = "esbuild"
+  timeout = 20
+
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 

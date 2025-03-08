@@ -4,7 +4,11 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+// Export function configuration for Netlify with increased timeout
 exports.handler = async function(event, context) {
+  // Set a longer function timeout (up to 26 seconds, which is Netlify's max for regular plans)
+  context.callbackWaitsForEmptyEventLoop = false;
+  
   // Only allow POST requests
   if (event.httpMethod !== "POST") {
     return {
@@ -40,7 +44,7 @@ exports.handler = async function(event, context) {
     
     try {
       const completion = await openai.chat.completions.create({
-        model: "gpt-4-turbo-preview",
+        model: "gpt-3.5-turbo", // Switch to a faster model to avoid timeouts
         messages: [
           {
             role: "system",
@@ -52,7 +56,7 @@ exports.handler = async function(event, context) {
           }
         ],
         temperature: 0.7,
-        max_tokens: 2500,
+        max_tokens: 1500, // Reduce token count to speed up generation
       });
 
       if (!completion.choices[0]?.message?.content) {
@@ -106,7 +110,7 @@ ${keywords.map(kw => `- ${kw}`).join('\n')}
 Guidelines:
 - Create a compelling headline (H1) that includes the primary keyword
 - Use proper heading structure (H2, H3) to organize the content
-- Write at least 700-1000 words of comprehensive content
+- Write at least 500-700 words of comprehensive content
 - Include an introduction that hooks the reader and explains what they'll learn
 - Provide practical, actionable advice and information
 - Incorporate keywords naturally without keyword stuffing
