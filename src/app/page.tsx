@@ -26,8 +26,8 @@ export default function Home() {
     setSuggestedKeywords([]);
     
     try {
-      // Initial AI keywords request
-      const aiResponse = await fetch('/api/keywords/ai', {
+      // Initial AI keywords request - now using Netlify function
+      const aiResponse = await fetch('/.netlify/functions/keywords-ai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ topic: topicValue }),
