@@ -11,7 +11,7 @@ function logWarning(message: string) {
 
 // API key for Similarweb
 const SIMILARWEB_API_KEY = 'd14923977f194036a9c41c5d924fd9ec';
-const SIMILARWEB_BASE_URL = 'https://api.similarweb.com/v1';
+const SIMILARWEB_BASE_URL = 'https://api.similarweb.com/v4';
 
 export async function POST(request: Request) {
   try {
@@ -50,9 +50,9 @@ async function getRelatedKeywords(keyword: string) {
     // Format the keyword for the URL
     const encodedKeyword = encodeURIComponent(keyword);
     
-    // Using the keywords research endpoint for related keywords
-    // Documentaton suggests this endpoint for related terms
-    const url = `${SIMILARWEB_BASE_URL}/keywords/organic-search/results?api_key=${SIMILARWEB_API_KEY}&keyword=${encodedKeyword}&country=us&limit=10`;
+    // Using the keywords research endpoint for related keywords in v4
+    // Documentation at https://developers.similarweb.com/reference/keywords-overview
+    const url = `${SIMILARWEB_BASE_URL}/keywords/${encodedKeyword}/analysis/related?api_key=${SIMILARWEB_API_KEY}&country=us&limit=10`;
     
     const response = await fetch(url);
     
