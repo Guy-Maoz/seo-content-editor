@@ -25,6 +25,12 @@
   node_bundler = "esbuild"
   timeout = 20
 
+# Set a higher timeout for more keywords generation
+[functions.keywords-more]
+  included_files = ["node_modules/openai/**"]
+  node_bundler = "esbuild"
+  timeout = 20
+
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 

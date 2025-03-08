@@ -17,6 +17,7 @@ export default function Home() {
   const [isLoadingKeywords, setIsLoadingKeywords] = useState(false);
   const [isGeneratingContent, setIsGeneratingContent] = useState(false);
   const [isAnalyzingContent, setIsAnalyzingContent] = useState(false);
+  const [isLoadingMoreKeywords, setIsLoadingMoreKeywords] = useState(false);
 
   // Fetch keywords from API based on topic
   const fetchKeywords = async (topicValue: string) => {
@@ -262,20 +263,23 @@ export default function Home() {
     }
   };
 
-  // Fetch more keyword suggestions based on used keywords
+  // Function to fetch more keyword suggestions
   const fetchMoreKeywords = async () => {
-    if (!topic) return;
+    if (!topic.trim()) return;
+    
+    setIsLoadingMoreKeywords(true);
     
     try {
       const usedKeywordsList = usedKeywords.map(k => k.keyword);
+      const negativeKeywordsList = negativeKeywords.map(k => k.keyword);
       
-      const response = await fetch('/api/keywords/more', {
+      const response = await fetch('/.netlify/functions/keywords-more', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          topic, 
+        body: JSON.stringify({
+          topic: topic,
           usedKeywords: usedKeywordsList,
-          negativeKeywords: negativeKeywords.map(k => k.keyword)
+          negativeKeywords: negativeKeywordsList
         }),
       });
 
@@ -367,6 +371,8 @@ export default function Home() {
       }
     } catch (error) {
       console.error('Error fetching more keywords:', error);
+    } finally {
+      setIsLoadingMoreKeywords(false);
     }
   };
 
