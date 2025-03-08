@@ -58,7 +58,7 @@ export default function Home() {
       for (let i = 0; i < keywordsWithLoadingMetrics.length; i++) {
         const keyword = keywordsWithLoadingMetrics[i];
         try {
-          const response = await fetch('/api/keywords/single', {
+          const response = await fetch('/.netlify/functions/keywords-single', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ keyword: keyword.keyword }),
@@ -148,7 +148,7 @@ export default function Home() {
         isUpdate: content.length > 0
       };
 
-      const response = await fetch('/api/content/generate', {
+      const response = await fetch('/.netlify/functions/content-generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestBody),
@@ -214,7 +214,7 @@ export default function Home() {
 
         // Enrich keyword with metrics
         try {
-          const response = await fetch('/api/keywords/single', {
+          const response = await fetch('/.netlify/functions/keywords-single', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ keyword: keyword.keyword }),
@@ -311,7 +311,7 @@ export default function Home() {
         for (let i = 0; i < newKeywords.length; i++) {
           const keyword = newKeywords[i];
           try {
-            const response = await fetch('/api/keywords/single', {
+            const response = await fetch('/.netlify/functions/keywords-single', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ keyword: keyword.keyword }),
