@@ -6,6 +6,7 @@ export const dynamic = 'force-static';
 export const revalidate = false;
 
 
+
 // Initialize OpenAI client
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,

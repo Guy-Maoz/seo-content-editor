@@ -6,6 +6,7 @@ import { ToolCallOutput } from '@/types/api';
 export const dynamic = 'force-static';
 export const revalidate = false;
 
+
 // Define the test tool for diagnostics
 const TOOL = {
   type: "function" as const,

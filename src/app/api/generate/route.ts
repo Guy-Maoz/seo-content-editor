@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
 
+// Add these exports to make the route compatible with static export
+export const dynamic = 'force-static';
+export const revalidate = false;
+
+
 // Initialize OpenAI client
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -80,10 +85,6 @@ export async function POST(request: Request) {
       
       Return ONLY the article content with HTML formatting, without any additional commentary.`
     });
-
-// Add these exports to make the route compatible with static export
-export const dynamic = 'force-static';
-export const revalidate = false;
 
 
     // Run the Assistant on the Thread with tools

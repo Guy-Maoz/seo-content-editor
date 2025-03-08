@@ -7,6 +7,7 @@ export const dynamic = 'force-static';
 export const revalidate = false;
 
 
+
 // Define the tool schema
 const TOOLS = [
   {

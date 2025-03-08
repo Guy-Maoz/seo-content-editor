@@ -5,6 +5,7 @@ export const dynamic = 'force-static';
 export const revalidate = false;
 
 
+
 // Add a helper function to print colored messages to console
 function logWarning(message: string) {
   // Use bright yellow with bold text and multiple warning symbols
