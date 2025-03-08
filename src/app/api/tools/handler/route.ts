@@ -2,6 +2,11 @@ import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { ToolCallOutput, KeywordMetricsResponse, AssistantToolResponse } from '@/types/api';
 
+// Add these exports to make the route compatible with static export
+export const dynamic = 'force-static';
+export const revalidate = false;
+
+
 // Define the tool schema
 const TOOLS = [
   {

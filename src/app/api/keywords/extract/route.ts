@@ -43,6 +43,11 @@ ${content.substring(0, 5000)}`  // Limit content length to avoid token issues
       response_format: { type: "json_object" },
     });
 
+// Add these exports to make the route compatible with static export
+export const dynamic = 'force-static';
+export const revalidate = false;
+
+
     // Check if we have a response and content
     if (!completion.choices[0]?.message?.content) {
       console.error('Empty response from OpenAI');

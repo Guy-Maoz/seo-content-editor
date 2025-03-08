@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { ToolCallOutput } from '@/types/api';
 
+// Add these exports to make the route compatible with static export
+export const dynamic = 'force-static';
+export const revalidate = false;
+
 // Define the test tool for diagnostics
 const TOOL = {
   type: "function" as const,

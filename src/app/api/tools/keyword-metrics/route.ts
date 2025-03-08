@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server';
 import { KeywordMetricsResponse, SimilarwebKeywordMetrics } from '@/types/api';
 
+// Add these exports to make the route compatible with static export
+export const dynamic = 'force-static';
+export const revalidate = false;
+
+
 // SimilarWeb API configuration
 const SIMILARWEB_API_KEY = process.env.SIMILARWEB_API_KEY || 'd14923977f194036a9c41c5d924fd9ec';
 const SIMILARWEB_BASE_URL = 'https://api.similarweb.com/v4';
