@@ -15,16 +15,17 @@ export default function AssistantDiagnosticPage() {
     setResults(null);
     
     try {
-      // Build the query URL with parameters
-      const url = `/api/tools/diagnostic?assistant_id=${encodeURIComponent(assistantId)}&keyword=${encodeURIComponent(testKeyword)}`;
+      // Build the query URL with parameters - using Netlify function instead of API route
+      const url = `/.netlify/functions/tools-diagnostic?assistant_id=${encodeURIComponent(assistantId)}&keyword=${encodeURIComponent(testKeyword)}`;
       
       const response = await fetch(url);
-      const data = await response.json();
       
       if (!response.ok) {
-        throw new Error(data.message || 'Failed to run diagnostic');
+        const errorData = await response.json().catch(() => ({ message: `HTTP error ${response.status}` }));
+        throw new Error(errorData.message || 'Failed to run diagnostic');
       }
       
+      const data = await response.json();
       setResults(data);
     } catch (error: any) {
       console.error('Error running diagnostic:', error);

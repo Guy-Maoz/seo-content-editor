@@ -31,6 +31,18 @@
   node_bundler = "esbuild"
   timeout = 20
 
+# Set a higher timeout for the diagnostic tool
+[functions.tools-diagnostic]
+  included_files = ["node_modules/openai/**"]
+  node_bundler = "esbuild"
+  timeout = 26
+
+# Set a higher timeout for the keyword metrics tool
+[functions.tools-keyword-metrics]
+  included_files = ["node_modules/openai/**"]
+  node_bundler = "esbuild"
+  timeout = 15
+
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
