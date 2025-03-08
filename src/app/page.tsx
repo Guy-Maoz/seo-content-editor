@@ -4,7 +4,6 @@ import { useState, useCallback, useEffect } from 'react';
 import TopicInput from '@/components/topic-input';
 import KeywordBank from '@/components/keyword-bank';
 import ContentEditor from '@/components/content-editor';
-import GenerateButton from '@/components/generate-button';
 import { Keyword } from '@/types/keyword';
 import { FiInfo } from 'react-icons/fi';
 import Link from 'next/link';
@@ -440,15 +439,9 @@ export default function Home() {
               isLoading={isGeneratingContent}
               usedKeywords={usedKeywords}
               negativeKeywords={negativeKeywords}
-            />
-          </div>
-          
-          <div className="flex justify-center">
-            <GenerateButton 
-              onClick={generateContent} 
-              isLoading={isGeneratingContent || isAnalyzingContent}
-              isDisabled={!topic || (suggestedKeywords.filter(k => k.selected).length === 0 && usedKeywords.length === 0)}
-              label={content ? "Improve Content" : "Generate Content"}
+              onGenerate={generateContent}
+              generateButtonLabel={content ? "Improve Content" : "Generate Content"}
+              isGenerateDisabled={!topic || (suggestedKeywords.filter(k => k.selected).length === 0 && usedKeywords.length === 0)}
             />
           </div>
         </div>
