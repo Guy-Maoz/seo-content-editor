@@ -438,6 +438,8 @@ export default function Home() {
               content={content} 
               onContentChange={handleContentChange}
               isLoading={isGeneratingContent}
+              usedKeywords={usedKeywords}
+              negativeKeywords={negativeKeywords}
             />
           </div>
           

@@ -6,13 +6,16 @@ import Highlight from '@tiptap/extension-highlight';
 import TextStyle from '@tiptap/extension-text-style';
 import Color from '@tiptap/extension-color';
 import Link from '@tiptap/extension-link';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { FiLoader, FiType, FiBold, FiItalic, FiList, FiLink, FiCode } from 'react-icons/fi';
+import { Keyword } from '@/types/keyword';
 
 interface ContentEditorProps {
   content: string;
   onContentChange: (content: string) => void;
   isLoading: boolean;
+  usedKeywords?: Keyword[];
+  negativeKeywords?: Keyword[];
 }
 
 const MenuBar = ({ editor }: { editor: Editor | null }) => {
@@ -120,11 +123,71 @@ const MenuBar = ({ editor }: { editor: Editor | null }) => {
   );
 };
 
+// Helper function to highlight keywords in content
+const highlightKeywords = (
+  content: string, 
+  usedKeywords: Keyword[] = [], 
+  negativeKeywords: Keyword[] = []
+): string => {
+  if (!content) return '';
+  
+  let processedContent = content;
+  
+  // Create arrays of keyword strings
+  const usedKeywordStrings = usedKeywords.map(k => k.keyword);
+  const negativeKeywordStrings = negativeKeywords.map(k => k.keyword);
+  
+  // Combine all keywords and sort by length (longest first) to avoid partial matches
+  const allKeywords = [
+    ...usedKeywordStrings.map(k => ({ text: k, type: 'used' })),
+    ...negativeKeywordStrings.map(k => ({ text: k, type: 'negative' }))
+  ];
+  
+  // Sort by length (longest first) to avoid partial matches
+  allKeywords.sort((a, b) => b.text.length - a.text.length);
+  
+  // Process each keyword with a word boundary regex for more accurate matching
+  allKeywords.forEach(({ text, type }) => {
+    // Create regex with word boundaries for exact word/phrase matching
+    const regex = new RegExp(`\\b${text.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')}\\b`, 'gi');
+    
+    // Replace with highlighted version based on keyword type
+    if (type === 'used') {
+      processedContent = processedContent.replace(
+        regex,
+        `<span class="bg-blue-100 text-blue-800 rounded px-1 py-0.5">$&</span>`
+      );
+    } else { // negative
+      processedContent = processedContent.replace(
+        regex,
+        `<span class="bg-red-100 text-red-800 rounded px-1 py-0.5">$&</span>`
+      );
+    }
+  });
+  
+  return processedContent;
+};
+
 export default function ContentEditor({
   content,
   onContentChange,
   isLoading,
+  usedKeywords = [],
+  negativeKeywords = [],
 }: ContentEditorProps) {
+  const [highlightedContent, setHighlightedContent] = useState<string>('');
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+  
+  // Apply highlighting to content when keywords change
+  useEffect(() => {
+    if (content) {
+      const highlighted = highlightKeywords(content, usedKeywords, negativeKeywords);
+      setHighlightedContent(highlighted);
+    } else {
+      setHighlightedContent('');
+    }
+  }, [content, usedKeywords, negativeKeywords]);
+  
   // Configure the editor
   const editor = useEditor({
     extensions: [
@@ -136,9 +199,12 @@ export default function ContentEditor({
         openOnClick: false,
       }),
     ],
-    content: content || '<p>Your content will appear here after generation</p>',
+    content: highlightedContent || content || '<p>Your content will appear here after generation</p>',
     onUpdate: ({ editor }) => {
-      onContentChange(editor.getHTML());
+      // Only update the parent content if it's a user edit, not our highlighting
+      if (!isInitialLoad) {
+        onContentChange(editor.getHTML());
+      }
     },
     editorProps: {
       attributes: {
@@ -147,12 +213,18 @@ export default function ContentEditor({
     },
   });
 
-  // Update content when it changes from props
+  // Update content when it changes from props or highlighting is applied
   useEffect(() => {
-    if (editor && content !== editor.getHTML()) {
-      editor.commands.setContent(content);
+    if (editor && highlightedContent) {
+      setIsInitialLoad(true);
+      editor.commands.setContent(highlightedContent);
+      
+      // Reset flag after content is set
+      setTimeout(() => {
+        setIsInitialLoad(false);
+      }, 100);
     }
-  }, [content, editor]);
+  }, [highlightedContent, editor]);
 
   // Make editor read-only when loading
   useEffect(() => {
@@ -180,6 +252,24 @@ export default function ContentEditor({
         <div className="border border-gray-200 rounded-md p-4 min-h-[500px] bg-white">
           <EditorContent editor={editor} />
         </div>
+        
+        {(usedKeywords.length > 0 || negativeKeywords.length > 0) && (
+          <div className="mt-3 text-xs text-gray-600 flex gap-4">
+            {usedKeywords.length > 0 && (
+              <div className="flex items-center">
+                <span className="inline-block w-3 h-3 bg-blue-100 mr-1.5 rounded"></span>
+                <span>Used keywords</span>
+              </div>
+            )}
+            
+            {negativeKeywords.length > 0 && (
+              <div className="flex items-center">
+                <span className="inline-block w-3 h-3 bg-red-100 mr-1.5 rounded"></span>
+                <span>Negative keywords</span>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
