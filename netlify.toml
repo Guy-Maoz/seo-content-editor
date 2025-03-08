@@ -1,6 +1,6 @@
 [build]
   command = "npm run build"
-  publish = ".next"
+  publish = "out"
 
 [build.environment]
   NETLIFY_NEXT_PLUGIN_SKIP = "true"
@@ -10,22 +10,16 @@
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
-[functions]
-  external_node_modules = ["@ampproject/toolbox-optimizer"]
-  included_files = ["**/*.node"]
-  node_bundler = "esbuild"
-  
-# Increase timeout for functions to accommodate API calls
-[functions."*"]
-  timeout = 60
+# Remove the problematic redirects that are interfering with Next.js asset loading
+# and replace with standard Next.js handling
 
-# Force Next.js SSR to work properly
-[[redirects]]
-  from = "/_next/static/*"
-  to = "/static/:splat"
-  status = 200
-
+# Default SPA fallback for client-side routing
 [[redirects]]
   from = "/*"
   to = "/index.html"
-  status = 200 
+  status = 200
+
+[[headers]]
+  for = "/_next/static/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable" 

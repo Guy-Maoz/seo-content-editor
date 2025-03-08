@@ -8,9 +8,9 @@ const nextConfig = {
     // Disabling TypeScript checking during builds
     ignoreBuildErrors: true,
   },
-  // Add output configuration
-  output: 'standalone',
-  // Configure images if needed
+  // Change from 'standalone' to 'export' for static site generation
+  output: 'export',
+  // Configure images
   images: {
     unoptimized: true,
   },

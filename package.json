@@ -7,8 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "postinstall": "next telemetry disable",
-    "export": "next export"
+    "postinstall": "next telemetry disable"
   },
   "dependencies": {
     "@tailwindcss/typography": "^0.5.16",
