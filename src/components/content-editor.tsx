@@ -348,6 +348,7 @@ export default function ContentEditor({
         class: 'outline-none prose prose-sm sm:prose lg:prose-lg prose-slate prose-h1:text-xl prose-h2:text-lg prose-h3:text-base mx-auto focus:outline-none min-h-[300px] max-w-none',
       },
     },
+    immediatelyRender: false,
   });
 
   // Update content when it changes from props or highlighting is applied
