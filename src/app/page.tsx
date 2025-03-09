@@ -258,6 +258,11 @@ export default function Home() {
     
     try {
       updateProgress(operationId, 30);
+      updateOperation(operationId, {
+        detail: 'Sending content to AI for keyword extraction...'
+      });
+      
+      console.log(`Analyzing content for keywords: ${contentText.substring(0, 100)}...`);
       
       const response = await apiFetch('/api/keywords/extract', {
         method: 'POST',
@@ -275,6 +280,7 @@ export default function Home() {
       });
       
       const data = await response.json();
+      console.log('Keywords extracted:', data.keywords ? data.keywords.length : 0, 'keywords found');
       
       // Extract new keywords that aren't already in usedKeywords or negative keywords
       const existingKeywordTexts = [
@@ -286,6 +292,8 @@ export default function Home() {
       const newKeywords = data.keywords.filter((k: any) => 
         !existingKeywordTexts.includes(k.keyword.toLowerCase())
       );
+      
+      console.log('New unique keywords:', newKeywords.length);
       
       if (newKeywords.length > 0) {
         // Enrich and add new keywords to suggested keywords
@@ -301,11 +309,15 @@ export default function Home() {
         
         // Add to suggested keywords
         setSuggestedKeywords(prev => [...prev, ...enrichedKeywords]);
+        updateOperation(operationId, {
+          detail: `Found ${enrichedKeywords.length} new keywords. Fetching metrics data...`
+        });
         
         // Enrich these keywords with metrics
         for (let i = 0; i < enrichedKeywords.length; i++) {
           const keyword = enrichedKeywords[i];
           try {
+            console.log(`Fetching metrics for extracted keyword: ${keyword.keyword}`);
             const response = await apiFetch('/api/keywords/single', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -313,10 +325,12 @@ export default function Home() {
             });
             
             if (!response.ok) {
+              console.warn(`Failed to get metrics for ${keyword.keyword}`);
               continue;
             }
             
             const data = await response.json();
+            console.log(`Metrics received for ${keyword.keyword}:`, data.metrics);
             
             // Update progress as we process each keyword
             const progressIncrement = 25 / enrichedKeywords.length;
@@ -347,6 +361,7 @@ export default function Home() {
         
         // Find more related keywords based on the analyzed content
         setTimeout(() => {
+          console.log('Fetching additional related keywords...');
           fetchMoreKeywords();
         }, 500); // Small delay to ensure UI updates first
         
@@ -512,76 +527,6 @@ export default function Home() {
   // Handle content changes
   const handleContentChange = (newContent: string) => {
     setContent(newContent);
-    
-    // Implement dynamic keyword syncing
-    // Check if any selected keywords are missing from the content and unselect them
-    if (suggestedKeywords.length > 0) {
-      // Create a lowercase version of the content for case-insensitive matching
-      const lowercaseContent = newContent.toLowerCase();
-      
-      // Check each keyword to see if it's in the content
-      suggestedKeywords.forEach(keyword => {
-        if (keyword.selected) {
-          // Check if the keyword exists in the content (with word boundaries)
-          const keywordPattern = new RegExp(`\\b${keyword.keyword.toLowerCase()}\\b`, 'i');
-          const isInContent = keywordPattern.test(lowercaseContent);
-          
-          // If keyword is not in the content anymore, unselect it
-          if (!isInContent) {
-            // Add a note to the transparency panel
-            addOperation({
-              type: 'info',
-              status: 'completed',
-              message: `Keyword "${keyword.keyword}" was removed from content`,
-              detail: 'Automatically unselected from keywords list'
-            });
-            
-            // Unselect the keyword
-            setSuggestedKeywords(prevKeywords => {
-              return prevKeywords.map(k => {
-                if (k.keyword === keyword.keyword) {
-                  return { ...k, selected: false };
-                }
-                return k;
-              });
-            });
-          }
-        }
-      });
-    }
-    
-    // Check used keywords to see if any need to be moved back to suggested
-    if (usedKeywords.length > 0) {
-      const lowercaseContent = newContent.toLowerCase();
-      
-      // Find used keywords that are no longer in the content
-      const keywordsToMove = usedKeywords.filter(keyword => {
-        const keywordPattern = new RegExp(`\\b${keyword.keyword.toLowerCase()}\\b`, 'i');
-        return !keywordPattern.test(lowercaseContent);
-      });
-      
-      // Move keywords back to suggested if they were removed from content
-      if (keywordsToMove.length > 0) {
-        // Add a note to the transparency panel
-        addOperation({
-          type: 'info',
-          status: 'completed',
-          message: `${keywordsToMove.length} used keywords removed from content`,
-          detail: 'Moved back to suggested keywords list'
-        });
-        
-        // Move the keywords back to suggested
-        setUsedKeywords(prev => prev.filter(k => 
-          !keywordsToMove.some(toMove => toMove.keyword === k.keyword)
-        ));
-        
-        // Add them to suggested keywords with selected: false
-        setSuggestedKeywords(prev => [
-          ...prev,
-          ...keywordsToMove.map(k => ({ ...k, selected: false }))
-        ]);
-      }
-    }
   };
 
   return (
