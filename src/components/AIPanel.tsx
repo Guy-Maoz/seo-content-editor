@@ -75,7 +75,7 @@ const AIPanel = ({
   const safeOperations = Array.isArray(operations) ? operations : [];
   
   return (
-    <div className="rounded-md">
+    <div className="rounded-md h-full">
       <div 
         className="mb-3 pb-2 border-b border-gray-200 flex justify-between items-center cursor-pointer"
         onClick={handleToggle}
@@ -87,7 +87,7 @@ const AIPanel = ({
       </div>
 
       {expanded ? (
-        <div className="space-y-3 max-h-[calc(100vh-200px)] overflow-y-auto pr-1">
+        <div className="space-y-3 overflow-y-auto pr-1">
           {safeOperations.length === 0 ? (
             <p className="text-gray-500 text-center py-6 text-sm">No AI operations recorded yet.</p>
           ) : (

@@ -627,7 +627,7 @@ export default function Home() {
       
       {/* AI Panel - Side Panel */}
       <div 
-        className={`fixed top-0 right-0 h-full w-80 bg-white border-l border-gray-200 shadow-lg z-40 transition-transform duration-300 transform ${isSidePanelVisible ? 'translate-x-0' : 'translate-x-full'} overflow-auto`}
+        className={`fixed top-0 right-0 h-full w-80 bg-white border-l border-gray-200 shadow-lg z-40 transition-transform duration-300 transform ${isSidePanelVisible ? 'translate-x-0' : 'translate-x-full'} flex flex-col`}
       >
         <div className="p-4 sticky top-0 bg-white border-b border-gray-200 z-10">
           <h2 className="text-xl font-semibold flex items-center">
@@ -636,30 +636,32 @@ export default function Home() {
           </h2>
           <p className="text-sm text-gray-600 mt-1">See what the AI is doing behind the scenes</p>
         </div>
-        <div className="p-4">
+        
+        {/* Middle scrollable content */}
+        <div className="p-4 flex-1 overflow-y-auto">
           <AIPanel 
             operations={operations} 
             isExpanded={isTransparencyPanelExpanded}
             onToggleExpand={() => setIsTransparencyPanelExpanded(!isTransparencyPanelExpanded)}
           />
+        </div>
           
-          {/* Developer Tools - Moved from main content */}
-          <div className="mt-4 border-t border-gray-200 pt-4">
-            <h3 className="text-sm font-semibold text-gray-700 mb-2">Developer Tools</h3>
-            <div className="flex flex-col gap-2">
-              <Link 
-                href="/test-tools" 
-                className="text-xs text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-3 py-1.5 rounded-md border border-blue-200 transition-colors flex items-center justify-center"
-              >
-                SEO Assistant Tools
-              </Link>
-              <Link 
-                href="/test-tools/diagnostic" 
-                className="text-xs text-green-600 hover:text-green-800 hover:bg-green-50 px-3 py-1.5 rounded-md border border-green-200 transition-colors flex items-center justify-center"
-              >
-                Assistant Diagnostic Tool
-              </Link>
-            </div>
+        {/* Developer Tools - Fixed to bottom */}
+        <div className="p-4 border-t border-gray-200 bg-white sticky bottom-0">
+          <h3 className="text-sm font-semibold text-gray-700 mb-2">Developer Tools</h3>
+          <div className="flex flex-col gap-2">
+            <Link 
+              href="/test-tools" 
+              className="text-xs text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-3 py-1.5 rounded-md border border-blue-200 transition-colors flex items-center justify-center"
+            >
+              SEO Assistant Tools
+            </Link>
+            <Link 
+              href="/test-tools/diagnostic" 
+              className="text-xs text-green-600 hover:text-green-800 hover:bg-green-50 px-3 py-1.5 rounded-md border border-green-200 transition-colors flex items-center justify-center"
+            >
+              Assistant Diagnostic Tool
+            </Link>
           </div>
         </div>
       </div>
