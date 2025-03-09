@@ -5,9 +5,8 @@ import TopicInput from '@/components/topic-input';
 import KeywordBank from '@/components/keyword-bank';
 import ContentEditor from '@/components/content-editor';
 import AITransparencyPanel from '@/components/AITransparencyPanel';
-import SidePanel from '@/components/SidePanel';
 import { Keyword } from '@/types/keyword';
-import { FiInfo } from 'react-icons/fi';
+import { FiInfo, FiChevronLeft, FiChevronRight } from 'react-icons/fi';
 import Link from 'next/link';
 import { useAITransparency } from '@/contexts/AITransparencyContext';
 import { apiFetch } from '@/utils/api';
@@ -22,6 +21,8 @@ export default function Home() {
   const [isGeneratingContent, setIsGeneratingContent] = useState(false);
   const [isAnalyzingContent, setIsAnalyzingContent] = useState(false);
   const [isLoadingMoreKeywords, setIsLoadingMoreKeywords] = useState(false);
+  const [isTransparencyPanelExpanded, setIsTransparencyPanelExpanded] = useState(false);
+  const [isSidePanelVisible, setIsSidePanelVisible] = useState(true);
 
   // Access the AI transparency context
   const { 
@@ -530,78 +531,94 @@ export default function Home() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto p-6 pb-24">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">SEO Content Editor</h1>
-        <Link href="/test-tools" className="text-blue-600 hover:underline flex items-center">
-          <FiInfo className="mr-1" /> Tools
-        </Link>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-1">
-          <div className="space-y-6">
-            <TopicInput 
-              onSubmit={handleTopicSubmit} 
-              isLoading={isLoadingKeywords} 
-            />
-            
-            <KeywordBank 
-              title="Suggested Keywords" 
-              keywords={suggestedKeywords}
-              onToggle={handleSuggestedKeywordToggle}
-              onRemove={(keyword) => handleAddToNegative(keyword, 'suggested')}
-              isLoading={isLoadingKeywords}
-              loadingMessage="Finding keywords..."
-              emptyMessage="Enter a topic to get keyword suggestions"
-              onMoreKeywords={fetchMoreKeywords}
-              isLoadingMore={isLoadingMoreKeywords}
-            />
-            
-            <KeywordBank 
-              title="Used Keywords" 
-              keywords={usedKeywords}
-              onToggle={() => {}}
-              onRemove={(keyword) => handleAddToNegative(keyword, 'used')}
-              isLoading={false}
-              emptyMessage="No keywords in use yet"
-            />
-            
-            <KeywordBank 
-              title="Negative Keywords" 
-              keywords={negativeKeywords}
-              onToggle={() => {}}
-              onRemove={handleRemoveFromNegative}
-              isLoading={false}
-              emptyMessage="No negative keywords yet"
-              variant="negative"
-            />
-          </div>
+    <main className="container mx-auto px-4 py-8 relative flex">
+      {/* Main content area */}
+      <div className={`flex-grow transition-all duration-300 ${isSidePanelVisible ? 'mr-80' : 'mr-0'}`}>
+        <h1 className="text-3xl font-bold mb-8 text-center">AI-Powered SEO Content Editor</h1>
+        
+        <div className="mb-6">
+          <TopicInput onSubmit={handleTopicSubmit} isLoading={isLoadingKeywords} />
         </div>
         
-        <div className="lg:col-span-2">
-          <ContentEditor 
-            content={content} 
-            onContentChange={handleContentChange}
-            isLoading={isGeneratingContent || isAnalyzingContent}
-            usedKeywords={usedKeywords}
-            negativeKeywords={negativeKeywords}
-            onGenerate={generateContent}
-            generateButtonLabel={content ? "Regenerate Content" : "Generate Content"}
-            isGenerateDisabled={suggestedKeywords.filter(k => k.selected).length === 0 && usedKeywords.length === 0}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-1">
+            <KeywordBank 
+              suggestedKeywords={suggestedKeywords}
+              usedKeywords={usedKeywords}
+              negativeKeywords={negativeKeywords}
+              onSuggestedKeywordToggle={handleSuggestedKeywordToggle}
+              onAddToNegative={handleAddToNegative}
+              onRemoveFromNegative={handleRemoveFromNegative}
+              isLoading={isLoadingKeywords}
+            />
+          </div>
+          
+          <div className="lg:col-span-2">
+            <div className="border border-gray-300 rounded-md p-4 mb-4">
+              <ContentEditor 
+                content={content} 
+                onContentChange={handleContentChange}
+                isLoading={isGeneratingContent}
+                usedKeywords={usedKeywords}
+                negativeKeywords={negativeKeywords}
+                onGenerate={generateContent}
+                generateButtonLabel={content ? "Improve Content" : "Generate Content"}
+                isGenerateDisabled={!topic || (suggestedKeywords.filter(k => k.selected).length === 0 && usedKeywords.length === 0)}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-6 text-center">
+          <div className="p-4 bg-gray-100 rounded-lg max-w-3xl mx-auto">
+            <h3 className="text-lg font-semibold text-gray-800 mb-2">Developer Tools</h3>
+            <div className="flex flex-col sm:flex-row justify-center gap-4">
+              <Link 
+                href="/test-tools" 
+                className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-4 py-2 rounded-md border border-blue-200 transition-colors"
+              >
+                SEO Assistant Tools
+              </Link>
+              <Link 
+                href="/test-tools/diagnostic" 
+                className="text-green-600 hover:text-green-800 hover:bg-green-50 px-4 py-2 rounded-md border border-green-200 transition-colors"
+              >
+                Assistant Diagnostic Tool
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Toggle button for side panel */}
+      <button 
+        onClick={() => setIsSidePanelVisible(!isSidePanelVisible)}
+        className="fixed right-0 top-1/2 transform -translate-y-1/2 bg-blue-50 border-blue-200 border-l border-t border-b rounded-l-md p-2 z-50 shadow-md"
+        aria-label={isSidePanelVisible ? "Hide AI Transparency Panel" : "Show AI Transparency Panel"}
+        title={isSidePanelVisible ? "Hide AI Transparency Panel" : "Show AI Transparency Panel"}
+      >
+        {isSidePanelVisible ? <FiChevronRight /> : <FiChevronLeft />}
+      </button>
+      
+      {/* AI Transparency Panel - Side Panel */}
+      <div 
+        className={`fixed top-0 right-0 h-full w-80 bg-white border-l border-gray-200 shadow-lg z-40 transition-transform duration-300 transform ${isSidePanelVisible ? 'translate-x-0' : 'translate-x-full'} overflow-auto`}
+      >
+        <div className="p-4 sticky top-0 bg-white border-b border-gray-200 z-10">
+          <h2 className="text-xl font-semibold flex items-center">
+            <FiInfo className="mr-2 text-blue-500" /> 
+            AI Transparency Panel
+          </h2>
+          <p className="text-sm text-gray-600 mt-1">See what the AI is doing behind the scenes</p>
+        </div>
+        <div className="p-4">
+          <AITransparencyPanel 
+            operations={operations} 
+            isExpanded={isTransparencyPanelExpanded}
+            onToggleExpand={() => setIsTransparencyPanelExpanded(!isTransparencyPanelExpanded)}
           />
         </div>
       </div>
-
-      {/* Side panel with AI Transparency Panel */}
-      <SidePanel title="AI Transparency" defaultOpen={false}>
-        <AITransparencyPanel 
-          operations={operations} 
-          isExpanded={true}
-          onToggleExpand={() => {}}
-        />
-      </SidePanel>
-    </div>
+    </main>
   );
 }
-
