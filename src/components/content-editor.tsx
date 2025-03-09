@@ -179,7 +179,7 @@ const highlightKeywords = (
   if (!content) return '';
   
   // Process the content first to clean it up
-  let processedContent = processContent(content);
+  const processedContent = processContent(content);
   
   // Create arrays of keyword strings
   const usedKeywordStrings = usedKeywords.map(k => k.keyword);
