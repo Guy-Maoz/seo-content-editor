@@ -276,24 +276,79 @@ export default function Home() {
       
       const data = await response.json();
       
-      // Extract new keywords that aren't already in usedKeywords
-      const existingKeywordTexts = usedKeywords.map(k => k.keyword.toLowerCase());
+      // Extract new keywords that aren't already in usedKeywords or negative keywords
+      const existingKeywordTexts = [
+        ...usedKeywords.map(k => k.keyword.toLowerCase()),
+        ...negativeKeywords.map(k => k.keyword.toLowerCase()),
+        ...suggestedKeywords.map(k => k.keyword.toLowerCase())
+      ];
+      
       const newKeywords = data.keywords.filter((k: any) => 
         !existingKeywordTexts.includes(k.keyword.toLowerCase())
       );
       
       if (newKeywords.length > 0) {
-        // Set as negative keywords by default
-        setNegativeKeywords(prev => [
-          ...prev,
-          ...newKeywords.map((k: any) => ({
-            keyword: k.keyword,
-            volume: 0,
-            difficulty: 0,
-            cpc: 0,
-            source: 'content-extraction'
-          }))
-        ]);
+        // Enrich and add new keywords to suggested keywords
+        const enrichedKeywords = newKeywords.map((k: any) => ({
+          keyword: k.keyword,
+          volume: 0,
+          difficulty: 0,
+          cpc: 0,
+          selected: false,
+          metricsLoading: true,
+          source: 'extracted'
+        }));
+        
+        // Add to suggested keywords
+        setSuggestedKeywords(prev => [...prev, ...enrichedKeywords]);
+        
+        // Enrich these keywords with metrics
+        for (let i = 0; i < enrichedKeywords.length; i++) {
+          const keyword = enrichedKeywords[i];
+          try {
+            const response = await apiFetch('/api/keywords/single', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ keyword: keyword.keyword }),
+            });
+            
+            if (!response.ok) {
+              continue;
+            }
+            
+            const data = await response.json();
+            
+            // Update progress as we process each keyword
+            const progressIncrement = 25 / enrichedKeywords.length;
+            updateProgress(operationId, 70 + (i + 1) * progressIncrement);
+            
+            // Update the keyword with metrics
+            setSuggestedKeywords(prev => {
+              const updatedKeywords = [...prev];
+              const keywordIndex = updatedKeywords.findIndex(k => 
+                k.keyword === keyword.keyword && k.source === 'extracted'
+              );
+              
+              if (keywordIndex >= 0) {
+                updatedKeywords[keywordIndex] = {
+                  ...updatedKeywords[keywordIndex],
+                  volume: data.metrics?.volume || 0,
+                  difficulty: data.metrics?.difficulty || 0,
+                  cpc: data.metrics?.cpc || 0,
+                  metricsLoading: false
+                };
+              }
+              return updatedKeywords;
+            });
+          } catch (error) {
+            console.error(`Error enriching extracted keyword "${keyword.keyword}":`, error);
+          }
+        }
+        
+        // Find more related keywords based on the analyzed content
+        setTimeout(() => {
+          fetchMoreKeywords();
+        }, 500); // Small delay to ensure UI updates first
         
         completeOperation(operationId, `Extracted ${newKeywords.length} additional keyword opportunities from content`);
       } else {
