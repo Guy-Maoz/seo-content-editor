@@ -42,7 +42,29 @@ The SEO Content Editor is a web application designed to help content creators an
   - Analyze keyword distribution and placement
   - Suggest improvements for SEO optimization
 
-### 3. Diagnostic and Testing Tools
+### 3. AI Transparency Panel
+
+- **Real-time AI Process Visibility**
+  - Display step-by-step actions the AI is taking during content generation
+  - Show reasoning behind keyword suggestions and content decisions
+  - Provide transparency into API calls and data processing
+
+- **Explanation Components**
+  - Clear explanations of how keywords are selected and prioritized
+  - Insights into content structure decisions (headings, paragraphs, etc.)
+  - Visibility into keyword density and placement strategy
+
+- **Process Indicators**
+  - Progress visualization for long-running AI tasks
+  - Status updates during multi-step operations
+  - Time estimates for completion of AI processes
+
+- **Learning Resources**
+  - Contextual SEO tips based on current operations
+  - Explanations of metrics and their importance
+  - Best practice suggestions tied to visible AI decisions
+
+### 4. Diagnostic and Testing Tools
 
 - **Assistant Tool Diagnostics**
   - Test OpenAI Assistant tool access and functionality

@@ -4,9 +4,11 @@ import { useState, useCallback, useEffect } from 'react';
 import TopicInput from '@/components/topic-input';
 import KeywordBank from '@/components/keyword-bank';
 import ContentEditor from '@/components/content-editor';
+import AITransparencyPanel from '@/components/AITransparencyPanel';
 import { Keyword } from '@/types/keyword';
 import { FiInfo } from 'react-icons/fi';
 import Link from 'next/link';
+import { useAITransparency } from '@/contexts/AITransparencyContext';
 
 export default function Home() {
   const [topic, setTopic] = useState('');
@@ -18,6 +20,17 @@ export default function Home() {
   const [isGeneratingContent, setIsGeneratingContent] = useState(false);
   const [isAnalyzingContent, setIsAnalyzingContent] = useState(false);
   const [isLoadingMoreKeywords, setIsLoadingMoreKeywords] = useState(false);
+  const [isTransparencyPanelExpanded, setIsTransparencyPanelExpanded] = useState(false);
+
+  // Access the AI transparency context
+  const { 
+    operations, 
+    addOperation, 
+    updateOperation,
+    updateProgress, 
+    completeOperation, 
+    failOperation 
+  } = useAITransparency();
 
   // Fetch keywords from API based on topic
   const fetchKeywords = async (topicValue: string) => {
@@ -26,8 +39,22 @@ export default function Home() {
     setIsLoadingKeywords(true);
     setSuggestedKeywords([]);
     
+    // Create a new operation in the transparency panel
+    const operationId = addOperation({
+      type: 'keyword-generation',
+      status: 'in-progress',
+      message: `Generating keywords for topic: "${topicValue}"`,
+      detail: 'Requesting keyword suggestions from AI...',
+      progress: 10
+    });
+    
     try {
       // Initial AI keywords request - now using Netlify function
+      updateProgress(operationId, 30);
+      updateOperation(operationId, { 
+        detail: 'Retrieving keyword suggestions from OpenAI...' 
+      });
+      
       const aiResponse = await fetch('/.netlify/functions/keywords-ai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -38,6 +65,11 @@ export default function Home() {
         throw new Error('Failed to fetch AI keywords');
       }
 
+      updateProgress(operationId, 50);
+      updateOperation(operationId, { 
+        detail: 'AI keywords received. Enriching with metrics data...' 
+      });
+      
       const aiData = await aiResponse.json();
       
       // Add placeholders for metrics
@@ -55,6 +87,11 @@ export default function Home() {
       setSuggestedKeywords(keywordsWithLoadingMetrics);
       setTopic(topicValue);
       
+      updateProgress(operationId, 70);
+      updateOperation(operationId, { 
+        detail: 'Retrieving search metrics for each keyword...' 
+      });
+      
       // Enrich each keyword with metrics
       for (let i = 0; i < keywordsWithLoadingMetrics.length; i++) {
         const keyword = keywordsWithLoadingMetrics[i];
@@ -64,44 +101,34 @@ export default function Home() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ keyword: keyword.keyword }),
           });
-          
-          if (response.ok) {
-            const data = await response.json();
-            
-            if (data.metrics) {
-              // Update this keyword with metrics
-              setSuggestedKeywords(prevKeywords => {
-                const newKeywords = [...prevKeywords];
-                const keywordIndex = newKeywords.findIndex(k => k.keyword === keyword.keyword);
-                
-                if (keywordIndex >= 0) {
-                  newKeywords[keywordIndex] = {
-                    ...newKeywords[keywordIndex],
-                    volume: data.metrics.volume || 0,
-                    difficulty: data.metrics.difficulty || 0,
-                    cpc: data.metrics.cpc || 0,
-                    metricsLoading: false,
-                    source: 'similarweb'
-                  };
-                }
-                return newKeywords;
-              });
-            } else {
-              // Mark as loaded but keep OpenAI data
-              setSuggestedKeywords(prevKeywords => {
-                const newKeywords = [...prevKeywords];
-                const keywordIndex = newKeywords.findIndex(k => k.keyword === keyword.keyword);
-                
-                if (keywordIndex >= 0) {
-                  newKeywords[keywordIndex] = {
-                    ...newKeywords[keywordIndex],
-                    metricsLoading: false
-                  };
-                }
-                return newKeywords;
-              });
-            }
+
+          if (!response.ok) {
+            throw new Error(`Failed to fetch metrics for keyword: ${keyword.keyword}`);
           }
+
+          const data = await response.json();
+          
+          // Calculate progress based on how many keywords we've processed
+          const progressIncrement = 20 / keywordsWithLoadingMetrics.length;
+          updateProgress(operationId, 70 + (i + 1) * progressIncrement);
+          
+          // Update the specific keyword with metrics
+          setSuggestedKeywords(prevKeywords => {
+            const newKeywords = [...prevKeywords];
+            const keywordIndex = newKeywords.findIndex(k => k.keyword === keyword.keyword);
+            
+            if (keywordIndex >= 0) {
+              newKeywords[keywordIndex] = {
+                ...newKeywords[keywordIndex],
+                volume: data.metrics.volume || 0,
+                difficulty: data.metrics.difficulty || 0,
+                cpc: data.metrics.cpc || 0,
+                isFallback: data.metrics.isFallback || false,
+                metricsLoading: false
+              };
+            }
+            return newKeywords;
+          });
         } catch (error) {
           console.error(`Error enriching keyword "${keyword.keyword}":`, error);
           
@@ -121,8 +148,11 @@ export default function Home() {
           });
         }
       }
+      
+      completeOperation(operationId, `Generated ${keywordsWithLoadingMetrics.length} keywords for "${topicValue}"`);
     } catch (error) {
       console.error('Error fetching keywords:', error);
+      failOperation(operationId, `Failed to generate keywords: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsLoadingKeywords(false);
     }
@@ -141,7 +171,20 @@ export default function Home() {
 
     setIsGeneratingContent(true);
     
+    // Create a new operation in the transparency panel
+    const operationId = addOperation({
+      type: 'content-creation',
+      status: 'in-progress',
+      message: 'Generating SEO-optimized content',
+      detail: `Creating content with ${allKeywords.length} selected keywords...`,
+      progress: 10
+    });
+    
     try {
+      updateOperation(operationId, {
+        detail: 'Preparing content generation request...'
+      });
+      
       const requestBody = {
         topic,
         keywords: allKeywords,
@@ -149,6 +192,11 @@ export default function Home() {
         isUpdate: content.length > 0
       };
 
+      updateProgress(operationId, 30);
+      updateOperation(operationId, {
+        detail: 'Processing your request with OpenAI...'
+      });
+      
       const response = await fetch('/.netlify/functions/content-generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -159,6 +207,11 @@ export default function Home() {
         throw new Error('Failed to generate content');
       }
 
+      updateProgress(operationId, 70);
+      updateOperation(operationId, {
+        detail: 'Content generated! Analyzing and formatting...'
+      });
+      
       const data = await response.json();
       setContent(data.content);
       
@@ -168,21 +221,43 @@ export default function Home() {
       setSuggestedKeywords(prev => prev.filter(k => !k.selected));
       
       // After content is generated, analyze it to extract more keywords
-      await analyzeContent(data.content);
+      await analyzeContent(data.content, operationId);
+      
+      completeOperation(operationId, `Successfully generated ${data.content.length > 500 ? 'comprehensive' : 'brief'} content with ${allKeywords.length} keywords`);
     } catch (error) {
       console.error('Error generating content:', error);
+      failOperation(operationId, `Failed to generate content: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsGeneratingContent(false);
     }
   };
 
   // Analyze content to extract used keywords
-  const analyzeContent = async (contentText: string) => {
+  const analyzeContent = async (contentText: string, parentOperationId?: string) => {
     if (!contentText.trim()) return;
     
     setIsAnalyzingContent(true);
     
+    // Create a new operation or use a child operation format if part of a parent operation
+    const operationId = parentOperationId 
+      ? addOperation({
+          type: 'keyword-analysis',
+          status: 'in-progress',
+          message: 'Analyzing generated content',
+          detail: 'Extracting keyword opportunities from content...',
+          progress: 10
+        })
+      : addOperation({
+          type: 'keyword-analysis',
+          status: 'in-progress',
+          message: 'Analyzing content for keywords',
+          detail: 'Processing content text...',
+          progress: 10
+        });
+    
     try {
+      updateProgress(operationId, 30);
+      
       const response = await fetch('/.netlify/functions/keywords-extract', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -193,6 +268,11 @@ export default function Home() {
         throw new Error('Failed to analyze content');
       }
 
+      updateProgress(operationId, 70);
+      updateOperation(operationId, {
+        detail: 'Processing extracted keywords...'
+      });
+      
       const data = await response.json();
       
       // Extract new keywords that aren't already in usedKeywords
@@ -201,63 +281,26 @@ export default function Home() {
         !existingKeywordTexts.includes(k.keyword.toLowerCase())
       );
       
-      // Enrich and add new keywords to usedKeywords
-      for (const keyword of newKeywords) {
-        setUsedKeywords(prev => [...prev, {
-          keyword: keyword.keyword,
-          volume: 0,
-          difficulty: 0,
-          cpc: 0,
-          selected: true,
-          metricsLoading: true,
-          source: 'extracted'
-        }]);
-
-        // Enrich keyword with metrics
-        try {
-          const response = await fetch('/.netlify/functions/keywords-single', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ keyword: keyword.keyword }),
-          });
-          
-          if (response.ok) {
-            const data = await response.json();
-            
-            setUsedKeywords(prev => {
-              const newUsedKeywords = [...prev];
-              const keywordIndex = newUsedKeywords.findIndex(k => 
-                k.keyword.toLowerCase() === keyword.keyword.toLowerCase() && k.source === 'extracted'
-              );
-              
-              if (keywordIndex >= 0 && data.metrics) {
-                newUsedKeywords[keywordIndex] = {
-                  ...newUsedKeywords[keywordIndex],
-                  volume: data.metrics.volume || 0,
-                  difficulty: data.metrics.difficulty || 0,
-                  cpc: data.metrics.cpc || 0,
-                  metricsLoading: false,
-                  source: 'similarweb'
-                };
-              } else if (keywordIndex >= 0) {
-                newUsedKeywords[keywordIndex] = {
-                  ...newUsedKeywords[keywordIndex],
-                  metricsLoading: false
-                };
-              }
-              
-              return newUsedKeywords;
-            });
-          }
-        } catch (error) {
-          console.error(`Error enriching extracted keyword "${keyword.keyword}":`, error);
-        }
+      if (newKeywords.length > 0) {
+        // Set as negative keywords by default
+        setNegativeKeywords(prev => [
+          ...prev,
+          ...newKeywords.map((k: any) => ({
+            keyword: k.keyword,
+            volume: 0,
+            difficulty: 0,
+            cpc: 0,
+            source: 'content-extraction'
+          }))
+        ]);
+        
+        completeOperation(operationId, `Extracted ${newKeywords.length} additional keyword opportunities from content`);
+      } else {
+        completeOperation(operationId, 'Content analyzed, no new keywords found');
       }
-      
-      // Find more related keywords based on the analyzed content
-      fetchMoreKeywords();
     } catch (error) {
       console.error('Error analyzing content:', error);
+      failOperation(operationId, `Failed to analyze content: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsAnalyzingContent(false);
     }
@@ -269,9 +312,20 @@ export default function Home() {
     
     setIsLoadingMoreKeywords(true);
     
+    // Create a new operation in the transparency panel
+    const operationId = addOperation({
+      type: 'keyword-generation',
+      status: 'in-progress',
+      message: 'Finding additional keyword opportunities',
+      detail: 'Requesting additional keywords based on your selections...',
+      progress: 20
+    });
+    
     try {
       const usedKeywordsList = usedKeywords.map(k => k.keyword);
       const negativeKeywordsList = negativeKeywords.map(k => k.keyword);
+      
+      updateProgress(operationId, 40);
       
       const response = await fetch('/.netlify/functions/keywords-more', {
         method: 'POST',
@@ -287,31 +341,29 @@ export default function Home() {
         throw new Error('Failed to fetch more keywords');
       }
 
+      updateProgress(operationId, 70);
+      updateOperation(operationId, {
+        detail: 'Processing additional keyword suggestions...'
+      });
+      
       const data = await response.json();
       
-      // Filter out keywords that are already in used or suggested lists
-      const existingKeywords = [
-        ...suggestedKeywords.map(k => k.keyword.toLowerCase()),
-        ...usedKeywords.map(k => k.keyword.toLowerCase()),
-        ...negativeKeywords.map(k => k.keyword.toLowerCase())
-      ];
-      
-      const newKeywords = data.keywords
-        .filter((k: any) => !existingKeywords.includes(k.keyword.toLowerCase()))
-        .map((keyword: any) => ({
-          keyword: keyword.keyword,
+      if (data.keywords && data.keywords.length > 0) {
+        // Add the new keywords to the suggested list
+        const newKeywords = data.keywords.map((k: any) => ({
+          keyword: k.keyword,
           volume: 0,
           difficulty: 0,
           cpc: 0,
           selected: false,
           metricsLoading: true,
-          source: 'openai'
+          source: 'additional'
         }));
-      
-      if (newKeywords.length > 0) {
+        
+        // Append to suggested keywords
         setSuggestedKeywords(prev => [...prev, ...newKeywords]);
         
-        // Enrich the new keywords
+        // Enrich these keywords with metrics
         for (let i = 0; i < newKeywords.length; i++) {
           const keyword = newKeywords[i];
           try {
@@ -321,56 +373,46 @@ export default function Home() {
               body: JSON.stringify({ keyword: keyword.keyword }),
             });
             
-            if (response.ok) {
-              const data = await response.json();
-              
-              if (data.metrics) {
-                // Update the keyword with metrics
-                setSuggestedKeywords(prevKeywords => {
-                  const newSuggestedKeywords = [...prevKeywords];
-                  const keywordIndex = newSuggestedKeywords.findIndex(k => 
-                    k.keyword.toLowerCase() === keyword.keyword.toLowerCase()
-                  );
-                  
-                  if (keywordIndex >= 0) {
-                    newSuggestedKeywords[keywordIndex] = {
-                      ...newSuggestedKeywords[keywordIndex],
-                      volume: data.metrics.volume || 0,
-                      difficulty: data.metrics.difficulty || 0,
-                      cpc: data.metrics.cpc || 0,
-                      metricsLoading: false,
-                      source: 'similarweb'
-                    };
-                  }
-                  
-                  return newSuggestedKeywords;
-                });
-              } else {
-                // Mark as loaded but keep OpenAI data
-                setSuggestedKeywords(prevKeywords => {
-                  const newSuggestedKeywords = [...prevKeywords];
-                  const keywordIndex = newSuggestedKeywords.findIndex(k => 
-                    k.keyword.toLowerCase() === keyword.keyword.toLowerCase()
-                  );
-                  
-                  if (keywordIndex >= 0) {
-                    newSuggestedKeywords[keywordIndex] = {
-                      ...newSuggestedKeywords[keywordIndex],
-                      metricsLoading: false
-                    };
-                  }
-                  
-                  return newSuggestedKeywords;
-                });
-              }
+            if (!response.ok) {
+              continue;
             }
+            
+            const data = await response.json();
+            
+            // Update progress as we process each keyword
+            const progressIncrement = 25 / newKeywords.length;
+            updateProgress(operationId, 70 + (i + 1) * progressIncrement);
+            
+            // Update this keyword with metrics
+            setSuggestedKeywords(prev => {
+              const updatedKeywords = [...prev];
+              const keywordIndex = updatedKeywords.findIndex(k => 
+                k.keyword === keyword.keyword && k.source === 'additional'
+              );
+              
+              if (keywordIndex >= 0) {
+                updatedKeywords[keywordIndex] = {
+                  ...updatedKeywords[keywordIndex],
+                  volume: data.metrics?.volume || 0,
+                  difficulty: data.metrics?.difficulty || 0,
+                  cpc: data.metrics?.cpc || 0,
+                  metricsLoading: false
+                };
+              }
+              return updatedKeywords;
+            });
           } catch (error) {
-            console.error(`Error enriching keyword "${keyword.keyword}":`, error);
+            console.error(`Error enriching additional keyword "${keyword.keyword}":`, error);
           }
         }
+        
+        completeOperation(operationId, `Found ${newKeywords.length} additional keyword suggestions`);
+      } else {
+        completeOperation(operationId, 'No additional keywords found');
       }
     } catch (error) {
       console.error('Error fetching more keywords:', error);
+      failOperation(operationId, `Failed to find additional keywords: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsLoadingMoreKeywords(false);
     }
@@ -471,6 +513,15 @@ export default function Home() {
             </Link>
           </div>
         </div>
+      </div>
+
+      {/* AI Transparency Panel */}
+      <div className="mt-8">
+        <AITransparencyPanel 
+          operations={operations} 
+          isExpanded={isTransparencyPanelExpanded}
+          onToggleExpand={() => setIsTransparencyPanelExpanded(!isTransparencyPanelExpanded)}
+        />
       </div>
     </main>
   );
