@@ -25,8 +25,11 @@ const AITransparencyPanel = ({
   onToggleExpand = () => {} 
 }: AITransparencyPanelProps) => {
   const [expanded, setExpanded] = useState(isExpanded);
+  const [isClient, setIsClient] = useState(false);
 
+  // Effect to handle SSR
   useEffect(() => {
+    setIsClient(true);
     setExpanded(isExpanded);
   }, [isExpanded]);
 
@@ -63,6 +66,14 @@ const AITransparencyPanel = ({
     }
   };
 
+  // If not client-side yet, render a minimal placeholder to avoid hydration errors
+  if (!isClient) {
+    return <div className="rounded-md min-h-[40px]"></div>;
+  }
+
+  // Ensure operations is an array (defensive coding for SSR)
+  const safeOperations = Array.isArray(operations) ? operations : [];
+  
   return (
     <div className="rounded-md">
       <div 
@@ -77,11 +88,11 @@ const AITransparencyPanel = ({
 
       {expanded ? (
         <div className="space-y-3 max-h-[calc(100vh-200px)] overflow-y-auto pr-1">
-          {operations.length === 0 ? (
+          {safeOperations.length === 0 ? (
             <p className="text-gray-500 text-center py-6 text-sm">No AI operations recorded yet.</p>
           ) : (
             <div className="space-y-3">
-              {operations.map((operation) => (
+              {safeOperations.map((operation) => (
                 <div 
                   key={operation.id} 
                   className={`p-2.5 border rounded-md ${getOperationClass(operation.type)} text-sm`}
@@ -121,8 +132,8 @@ const AITransparencyPanel = ({
         </div>
       ) : (
         <div className="text-sm text-center text-gray-500 py-2">
-          {operations.length > 0 ? 
-            `${operations.length} operation${operations.length !== 1 ? 's' : ''} in progress or completed` : 
+          {safeOperations.length > 0 ? 
+            `${safeOperations.length} operation${safeOperations.length !== 1 ? 's' : ''} in progress or completed` : 
             'No operations recorded'
           }
         </div>

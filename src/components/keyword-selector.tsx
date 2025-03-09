@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { FiCheck, FiLoader, FiInfo } from 'react-icons/fi';
 
 export interface Keyword {

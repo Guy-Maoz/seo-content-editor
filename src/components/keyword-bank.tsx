@@ -1,34 +1,30 @@
 'use client';
 
 import { useState } from 'react';
-import { FiCheck, FiX, FiLoader, FiInfo, FiPlus, FiMinus, FiThumbsDown, FiThumbsUp, FiRefreshCw } from 'react-icons/fi';
+import { FiCheck, FiX, FiLoader, FiInfo, FiPlus, FiMinus, FiThumbsDown, FiThumbsUp } from 'react-icons/fi';
 import { Keyword } from '@/types/keyword';
 
 interface KeywordBankProps {
-  title: string;
-  keywords: Keyword[];
-  onToggle: (keyword: Keyword) => void;
-  onRemove: (keyword: Keyword) => void;
+  suggestedKeywords: Keyword[];
+  usedKeywords: Keyword[];
+  negativeKeywords: Keyword[];
+  onSuggestedKeywordToggle: (keyword: Keyword) => void;
+  onAddToNegative: (keyword: Keyword, source: 'suggested' | 'used') => void;
+  onRemoveFromNegative: (keyword: Keyword) => void;
   isLoading: boolean;
-  emptyMessage: string;
-  loadingMessage?: string;
-  variant?: 'default' | 'negative';
-  onMoreKeywords?: () => Promise<void>;
-  isLoadingMore?: boolean;
 }
 
 export default function KeywordBank({
-  title,
-  keywords,
-  onToggle,
-  onRemove,
+  suggestedKeywords,
+  usedKeywords,
+  negativeKeywords,
+  onSuggestedKeywordToggle,
+  onAddToNegative,
+  onRemoveFromNegative,
   isLoading,
-  emptyMessage,
-  loadingMessage = "Loading keywords...",
-  variant = 'default',
-  onMoreKeywords,
-  isLoadingMore = false
 }: KeywordBankProps) {
+  const [activeTab, setActiveTab] = useState<'suggested' | 'used' | 'negative'>('suggested');
+
   // Skeleton loader for metrics
   const MetricsSkeleton = () => (
     <div className="flex items-center space-x-2">
@@ -40,13 +36,21 @@ export default function KeywordBank({
 
   // Render a single keyword with metrics
   const KeywordItem = ({ 
-    keyword,
+    keyword, 
+    showCheckbox = false, 
+    showRemoveButton = false,
+    showNegativeButton = false, 
     onToggle,
     onRemove,
+    onNegative
   }: { 
     keyword: Keyword; 
-    onToggle: (keyword: Keyword) => void;
-    onRemove: (keyword: Keyword) => void;
+    showCheckbox?: boolean;
+    showRemoveButton?: boolean;
+    showNegativeButton?: boolean;
+    onToggle?: () => void;
+    onRemove?: () => void;
+    onNegative?: () => void;
   }) => (
     <div className={`flex items-center p-3 border-b border-gray-200 text-sm ${keyword.selected ? 'bg-blue-50' : ''}`}>
       <div className="flex-grow">
@@ -70,29 +74,29 @@ export default function KeywordBank({
       </div>
       
       <div className="flex items-center space-x-2">
-        {variant === 'default' && (
-          <>
-            <button 
-              onClick={() => onToggle(keyword)}
-              className={`p-1.5 rounded-full ${keyword.selected ? 'bg-blue-500 text-white' : 'border border-gray-300 text-gray-400 hover:text-gray-600'}`}
-              title={keyword.selected ? "Deselect keyword" : "Select keyword"}
-            >
-              <FiCheck size={16} />
-            </button>
-            
-            <button 
-              onClick={() => onRemove(keyword)}
-              className="p-1.5 rounded-full border border-gray-300 text-gray-400 hover:text-red-500 hover:border-red-300"
-              title="Add to negative keywords"
-            >
-              <FiThumbsDown size={16} />
-            </button>
-          </>
+        {showCheckbox && (
+          <button 
+            onClick={onToggle}
+            className={`p-1.5 rounded-full ${keyword.selected ? 'bg-blue-500 text-white' : 'border border-gray-300 text-gray-400 hover:text-gray-600'}`}
+            title={keyword.selected ? "Deselect keyword" : "Select keyword"}
+          >
+            <FiCheck size={16} />
+          </button>
         )}
         
-        {variant === 'negative' && (
+        {showNegativeButton && (
           <button 
-            onClick={() => onRemove(keyword)}
+            onClick={onNegative}
+            className="p-1.5 rounded-full border border-gray-300 text-gray-400 hover:text-red-500 hover:border-red-300"
+            title="Add to negative keywords"
+          >
+            <FiThumbsDown size={16} />
+          </button>
+        )}
+        
+        {showRemoveButton && (
+          <button 
+            onClick={onRemove}
             className="p-1.5 rounded-full border border-gray-300 text-gray-400 hover:text-blue-500 hover:border-blue-300"
             title="Remove from negative keywords"
           >
@@ -105,65 +109,132 @@ export default function KeywordBank({
 
   return (
     <div className="border border-gray-300 rounded-md overflow-hidden h-full flex flex-col">
-      <div className="bg-gray-50 border-b border-gray-300 p-3 flex justify-between items-center">
-        <h3 className="font-medium text-gray-800">{title}</h3>
-        <span className="text-xs text-gray-500">{keywords.length} keywords</span>
+      <div className="bg-gray-50 border-b border-gray-300 p-3">
+        <h3 className="font-medium text-gray-800">Keyword Bank</h3>
+      </div>
+      
+      {/* Tabs */}
+      <div className="flex border-b border-gray-300">
+        <button
+          className={`flex-1 py-2 px-4 text-sm font-medium ${activeTab === 'suggested' ? 'bg-white text-blue-600 border-b-2 border-blue-500' : 'bg-gray-50 text-gray-600'}`}
+          onClick={() => setActiveTab('suggested')}
+        >
+          Suggested ({suggestedKeywords.length})
+        </button>
+        <button
+          className={`flex-1 py-2 px-4 text-sm font-medium ${activeTab === 'used' ? 'bg-white text-blue-600 border-b-2 border-blue-500' : 'bg-gray-50 text-gray-600'}`}
+          onClick={() => setActiveTab('used')}
+        >
+          Used ({usedKeywords.length})
+        </button>
+        <button
+          className={`flex-1 py-2 px-4 text-sm font-medium ${activeTab === 'negative' ? 'bg-white text-blue-600 border-b-2 border-blue-500' : 'bg-gray-50 text-gray-600'}`}
+          onClick={() => setActiveTab('negative')}
+        >
+          Negative ({negativeKeywords.length})
+        </button>
       </div>
       
       {/* Loading state */}
-      {isLoading && (
+      {isLoading && activeTab === 'suggested' && (
         <div className="flex items-center justify-center p-6 text-blue-600">
           <FiLoader className="animate-spin mr-2" size={20} />
-          <span>{loadingMessage}</span>
+          <span>Loading keywords...</span>
         </div>
       )}
       
-      {/* Empty state */}
-      {!isLoading && keywords.length === 0 && (
+      {/* Empty states */}
+      {!isLoading && suggestedKeywords.length === 0 && activeTab === 'suggested' && (
         <div className="flex flex-col items-center justify-center p-6 text-gray-500">
           <FiInfo size={24} className="mb-2" />
-          <p className="text-center">{emptyMessage}</p>
+          <p className="text-center">Enter a topic to get keyword suggestions</p>
         </div>
       )}
       
-      {/* Keyword list */}
-      {!isLoading && keywords.length > 0 && (
-        <div className="flex-grow overflow-auto">
-          <div className="divide-y divide-gray-200">
-            {keywords.map((keyword, index) => (
-              <KeywordItem 
-                key={index} 
-                keyword={keyword}
-                onToggle={onToggle}
-                onRemove={onRemove}
-              />
-            ))}
-          </div>
-          
-          {/* More keywords button */}
-          {onMoreKeywords && (
-            <div className="p-3 border-t border-gray-200 bg-gray-50">
-              <button
-                onClick={() => onMoreKeywords()}
-                disabled={isLoadingMore}
-                className="w-full py-2 px-4 text-sm border border-blue-300 text-blue-600 rounded-md flex items-center justify-center hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isLoadingMore ? (
-                  <>
-                    <FiLoader className="animate-spin mr-2" size={16} />
-                    Loading more keywords...
-                  </>
-                ) : (
-                  <>
-                    <FiRefreshCw className="mr-2" size={16} />
-                    Find more keywords
-                  </>
-                )}
-              </button>
-            </div>
-          )}
+      {usedKeywords.length === 0 && activeTab === 'used' && (
+        <div className="flex flex-col items-center justify-center p-6 text-gray-500">
+          <FiInfo size={24} className="mb-2" />
+          <p className="text-center">No keywords have been used yet</p>
         </div>
       )}
+      
+      {negativeKeywords.length === 0 && activeTab === 'negative' && (
+        <div className="flex flex-col items-center justify-center p-6 text-gray-500">
+          <FiInfo size={24} className="mb-2" />
+          <p className="text-center">No negative keywords added</p>
+        </div>
+      )}
+      
+      {/* Keyword lists */}
+      <div className="flex-grow overflow-auto">
+        {activeTab === 'suggested' && !isLoading && suggestedKeywords.length > 0 && (
+          <div>
+            <div className="bg-blue-50 p-3 text-xs text-blue-800 border-b border-blue-100">
+              <div className="flex items-start">
+                <FiInfo className="text-blue-500 mt-0.5 mr-1 flex-shrink-0" size={14} />
+                <p>Select keywords to include in your content generation</p>
+              </div>
+            </div>
+            
+            <div className="divide-y divide-gray-200">
+              {suggestedKeywords.map((keyword, index) => (
+                <KeywordItem 
+                  key={index} 
+                  keyword={keyword}
+                  showCheckbox={true}
+                  showNegativeButton={true}
+                  onToggle={() => onSuggestedKeywordToggle(keyword)}
+                  onNegative={() => onAddToNegative(keyword, 'suggested')}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+        
+        {activeTab === 'used' && usedKeywords.length > 0 && (
+          <div>
+            <div className="bg-green-50 p-3 text-xs text-green-800 border-b border-green-100">
+              <div className="flex items-start">
+                <FiInfo className="text-green-500 mt-0.5 mr-1 flex-shrink-0" size={14} />
+                <p>These keywords are currently used in your content</p>
+              </div>
+            </div>
+            
+            <div className="divide-y divide-gray-200">
+              {usedKeywords.map((keyword, index) => (
+                <KeywordItem 
+                  key={index} 
+                  keyword={keyword}
+                  showNegativeButton={true}
+                  onNegative={() => onAddToNegative(keyword, 'used')}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+        
+        {activeTab === 'negative' && negativeKeywords.length > 0 && (
+          <div>
+            <div className="bg-red-50 p-3 text-xs text-red-800 border-b border-red-100">
+              <div className="flex items-start">
+                <FiInfo className="text-red-500 mt-0.5 mr-1 flex-shrink-0" size={14} />
+                <p>These keywords will be excluded from content generation</p>
+              </div>
+            </div>
+            
+            <div className="divide-y divide-gray-200">
+              {negativeKeywords.map((keyword, index) => (
+                <KeywordItem 
+                  key={index} 
+                  keyword={keyword}
+                  showRemoveButton={true}
+                  onRemove={() => onRemoveFromNegative(keyword)}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 } 

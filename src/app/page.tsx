@@ -23,10 +23,16 @@ export default function Home() {
   const [isLoadingMoreKeywords, setIsLoadingMoreKeywords] = useState(false);
   const [isTransparencyPanelExpanded, setIsTransparencyPanelExpanded] = useState(false);
   const [isSidePanelVisible, setIsSidePanelVisible] = useState(true);
+  const [isClient, setIsClient] = useState(false);
+
+  // Add effect to handle server-side rendering
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   // Access the AI transparency context
   const { 
-    operations, 
+    operations = [], 
     addOperation, 
     updateOperation,
     updateProgress, 
@@ -529,6 +535,45 @@ export default function Home() {
   const handleContentChange = (newContent: string) => {
     setContent(newContent);
   };
+
+  // If not client-side yet, render a simplified version of the UI without operations to avoid SSR issues
+  if (!isClient) {
+    return (
+      <main className="container mx-auto px-4 py-8 relative">
+        <h1 className="text-3xl font-bold mb-8 text-center">AI-Powered SEO Content Editor</h1>
+        <div className="mb-6">
+          <TopicInput onSubmit={handleTopicSubmit} isLoading={isLoadingKeywords} />
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-1">
+            <KeywordBank 
+              suggestedKeywords={[]}
+              usedKeywords={[]}
+              negativeKeywords={[]}
+              onSuggestedKeywordToggle={handleSuggestedKeywordToggle}
+              onAddToNegative={handleAddToNegative}
+              onRemoveFromNegative={handleRemoveFromNegative}
+              isLoading={isLoadingKeywords}
+            />
+          </div>
+          <div className="lg:col-span-2">
+            <div className="border border-gray-300 rounded-md p-4 mb-4">
+              <ContentEditor 
+                content={''} 
+                onContentChange={handleContentChange}
+                isLoading={false}
+                usedKeywords={[]}
+                negativeKeywords={[]}
+                onGenerate={() => {}}
+                generateButtonLabel={'Generate Content'}
+                isGenerateDisabled={true}
+              />
+            </div>
+          </div>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="container mx-auto px-4 py-8 relative flex">
