@@ -296,21 +296,21 @@ export default function Home() {
       console.log('New unique keywords:', newKeywords.length);
       
       if (newKeywords.length > 0) {
-        // Enrich and add new keywords to suggested keywords
+        // Enrich and add new keywords to used keywords (instead of suggested)
         const enrichedKeywords = newKeywords.map((k: any) => ({
           keyword: k.keyword,
           volume: 0,
           difficulty: 0,
           cpc: 0,
-          selected: false,
+          selected: true, // Selected by default since they're used
           metricsLoading: true,
           source: 'extracted'
         }));
         
-        // Add to suggested keywords
-        setSuggestedKeywords(prev => [...prev, ...enrichedKeywords]);
+        // Add to used keywords instead of suggested keywords
+        setUsedKeywords(prev => [...prev, ...enrichedKeywords]);
         updateOperation(operationId, {
-          detail: `Found ${enrichedKeywords.length} new keywords. Fetching metrics data...`
+          detail: `Found ${enrichedKeywords.length} keywords used in content. Fetching metrics data...`
         });
         
         // Enrich these keywords with metrics
@@ -337,7 +337,7 @@ export default function Home() {
             updateProgress(operationId, 70 + (i + 1) * progressIncrement);
             
             // Update the keyword with metrics
-            setSuggestedKeywords(prev => {
+            setUsedKeywords(prev => {
               const updatedKeywords = [...prev];
               const keywordIndex = updatedKeywords.findIndex(k => 
                 k.keyword === keyword.keyword && k.source === 'extracted'
@@ -365,7 +365,7 @@ export default function Home() {
           fetchMoreKeywords();
         }, 500); // Small delay to ensure UI updates first
         
-        completeOperation(operationId, `Extracted ${newKeywords.length} additional keyword opportunities from content`);
+        completeOperation(operationId, `Added ${newKeywords.length} keywords from your content to the Used Keywords list`);
       } else {
         completeOperation(operationId, 'Content analyzed, no new keywords found');
       }
