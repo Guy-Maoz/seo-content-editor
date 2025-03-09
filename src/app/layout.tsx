@@ -18,9 +18,13 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={inter.className}>
+      <body className={`${inter.className} overflow-x-hidden`}>
         <AITransparencyProvider>
-          {children}
+          <div className="min-h-screen flex">
+            <main className="flex-1">
+              {children}
+            </main>
+          </div>
         </AITransparencyProvider>
       </body>
     </html>

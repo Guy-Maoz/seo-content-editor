@@ -1,141 +1,169 @@
 'use client';
 
-import { FiCheck, FiX, FiLoader, FiThumbsDown } from 'react-icons/fi';
+import { useState } from 'react';
+import { FiCheck, FiX, FiLoader, FiInfo, FiPlus, FiMinus, FiThumbsDown, FiThumbsUp, FiRefreshCw } from 'react-icons/fi';
 import { Keyword } from '@/types/keyword';
 
 interface KeywordBankProps {
   title: string;
   keywords: Keyword[];
   onToggle: (keyword: Keyword) => void;
-  onAddToNegative?: (keyword: Keyword) => void;
-  onRemove?: (keyword: Keyword) => void;
-  isLoading?: boolean;
-  showCheckboxes?: boolean;
-  isNegative?: boolean;
+  onRemove: (keyword: Keyword) => void;
+  isLoading: boolean;
+  emptyMessage: string;
+  loadingMessage?: string;
+  variant?: 'default' | 'negative';
+  onMoreKeywords?: () => Promise<void>;
+  isLoadingMore?: boolean;
 }
 
 export default function KeywordBank({
   title,
   keywords,
   onToggle,
-  onAddToNegative,
   onRemove,
-  isLoading = false,
-  showCheckboxes = true,
-  isNegative = false
+  isLoading,
+  emptyMessage,
+  loadingMessage = "Loading keywords...",
+  variant = 'default',
+  onMoreKeywords,
+  isLoadingMore = false
 }: KeywordBankProps) {
   // Skeleton loader for metrics
   const MetricsSkeleton = () => (
     <div className="flex items-center space-x-2">
+      <div className="h-4 bg-gray-200 rounded w-8 animate-pulse"></div>
       <div className="h-4 bg-gray-200 rounded w-12 animate-pulse"></div>
-      <div className="h-4 bg-gray-200 rounded w-16 animate-pulse"></div>
       <div className="h-4 bg-gray-200 rounded w-10 animate-pulse"></div>
     </div>
   );
 
-  // Individual keyword item component
-  const KeywordItem = ({ keyword }: { keyword: Keyword }) => (
-    <div className={`border rounded-md p-3 mb-2 ${keyword.selected ? 'border-blue-300 bg-blue-50' : 'border-gray-200'}`}>
-      <div className="flex justify-between items-start">
-        <div className="flex items-center">
-          {showCheckboxes && (
-            <div 
-              className={`mr-3 h-5 w-5 flex items-center justify-center rounded border ${
-                keyword.selected 
-                  ? 'bg-blue-500 border-blue-500 text-white' 
-                  : 'border-gray-300 bg-white'
-              } cursor-pointer`}
-              onClick={() => onToggle(keyword)}
-            >
-              {keyword.selected && <FiCheck className="h-4 w-4" />}
-            </div>
-          )}
-          <div>
-            <div className="font-medium text-gray-800">{keyword.keyword}</div>
-            <div className="mt-1 text-xs flex items-center space-x-3">
-              {keyword.metricsLoading ? (
-                <MetricsSkeleton />
-              ) : (
-                <>
-                  {keyword.volume !== undefined && (
-                    <div className="flex items-center" title="Monthly search volume">
-                      <span className="text-blue-700 font-medium">{keyword.volume.toLocaleString()}</span>
-                      <span className="ml-1 text-gray-500">vol</span>
-                    </div>
-                  )}
-                  {keyword.difficulty !== undefined && (
-                    <div className="flex items-center" title="SEO difficulty score">
-                      <span 
-                        className={`font-medium ${
-                          keyword.difficulty < 30 ? 'text-green-600' : 
-                          keyword.difficulty < 60 ? 'text-orange-500' : 
-                          'text-red-600'
-                        }`}
-                      >
-                        {keyword.difficulty}
-                      </span>
-                      <span className="ml-1 text-gray-500">diff</span>
-                    </div>
-                  )}
-                  {keyword.cpc !== undefined && (
-                    <div className="flex items-center" title="Cost per click">
-                      <span className="text-green-600 font-medium">${keyword.cpc.toFixed(2)}</span>
-                      <span className="ml-1 text-gray-500">cpc</span>
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
+  // Render a single keyword with metrics
+  const KeywordItem = ({ 
+    keyword,
+    onToggle,
+    onRemove,
+  }: { 
+    keyword: Keyword; 
+    onToggle: (keyword: Keyword) => void;
+    onRemove: (keyword: Keyword) => void;
+  }) => (
+    <div className={`flex items-center p-3 border-b border-gray-200 text-sm ${keyword.selected ? 'bg-blue-50' : ''}`}>
+      <div className="flex-grow">
+        <div className="font-medium text-gray-800">{keyword.keyword}</div>
+        
+        {keyword.metricsLoading ? (
+          <MetricsSkeleton />
+        ) : (
+          <div className="flex items-center space-x-2 text-xs text-gray-500 mt-1">
+            <span title="Search Volume">Vol: {keyword.volume.toLocaleString()}</span>
+            <span className="text-gray-300">|</span>
+            <span title="SEO Difficulty">
+              Diff: <span className={`font-medium ${keyword.difficulty < 30 ? 'text-green-500' : keyword.difficulty < 70 ? 'text-yellow-500' : 'text-red-500'}`}>
+                {keyword.difficulty.toFixed(0)}
+              </span>
+            </span>
+            <span className="text-gray-300">|</span>
+            <span title="Cost Per Click">CPC: ${keyword.cpc.toFixed(2)}</span>
           </div>
-        </div>
-        <div className="flex space-x-1">
-          {isNegative ? (
+        )}
+      </div>
+      
+      <div className="flex items-center space-x-2">
+        {variant === 'default' && (
+          <>
             <button 
-              onClick={() => onRemove && onRemove(keyword)}
-              className="p-1 text-red-500 hover:bg-red-50 rounded-full"
-              title="Remove from negative keywords"
+              onClick={() => onToggle(keyword)}
+              className={`p-1.5 rounded-full ${keyword.selected ? 'bg-blue-500 text-white' : 'border border-gray-300 text-gray-400 hover:text-gray-600'}`}
+              title={keyword.selected ? "Deselect keyword" : "Select keyword"}
             >
-              <FiX className="h-4 w-4" />
+              <FiCheck size={16} />
             </button>
-          ) : (
+            
             <button 
-              onClick={() => onAddToNegative && onAddToNegative(keyword)}
-              className="p-1 text-gray-500 hover:bg-gray-100 rounded-full"
+              onClick={() => onRemove(keyword)}
+              className="p-1.5 rounded-full border border-gray-300 text-gray-400 hover:text-red-500 hover:border-red-300"
               title="Add to negative keywords"
             >
-              <FiThumbsDown className="h-4 w-4" />
+              <FiThumbsDown size={16} />
             </button>
-          )}
-        </div>
+          </>
+        )}
+        
+        {variant === 'negative' && (
+          <button 
+            onClick={() => onRemove(keyword)}
+            className="p-1.5 rounded-full border border-gray-300 text-gray-400 hover:text-blue-500 hover:border-blue-300"
+            title="Remove from negative keywords"
+          >
+            <FiThumbsUp size={16} />
+          </button>
+        )}
       </div>
     </div>
   );
 
   return (
-    <div className="border rounded-md overflow-hidden bg-white shadow-sm">
-      <div className="bg-gray-50 border-b px-4 py-3">
-        <h2 className="font-medium text-gray-800">{title}</h2>
+    <div className="border border-gray-300 rounded-md overflow-hidden h-full flex flex-col">
+      <div className="bg-gray-50 border-b border-gray-300 p-3 flex justify-between items-center">
+        <h3 className="font-medium text-gray-800">{title}</h3>
+        <span className="text-xs text-gray-500">{keywords.length} keywords</span>
       </div>
-      <div className="p-4">
-        {isLoading ? (
-          <div className="py-4 flex justify-center">
-            <div className="flex items-center space-x-2">
-              <FiLoader className="animate-spin text-blue-500" />
-              <span className="text-gray-500">Loading keywords...</span>
-            </div>
-          </div>
-        ) : keywords.length === 0 ? (
-          <div className="py-4 text-center text-gray-500">
-            <p>No keywords available</p>
-          </div>
-        ) : (
-          <div className="max-h-80 overflow-y-auto">
-            {keywords.map((keyword) => (
-              <KeywordItem key={keyword.keyword} keyword={keyword} />
+      
+      {/* Loading state */}
+      {isLoading && (
+        <div className="flex items-center justify-center p-6 text-blue-600">
+          <FiLoader className="animate-spin mr-2" size={20} />
+          <span>{loadingMessage}</span>
+        </div>
+      )}
+      
+      {/* Empty state */}
+      {!isLoading && keywords.length === 0 && (
+        <div className="flex flex-col items-center justify-center p-6 text-gray-500">
+          <FiInfo size={24} className="mb-2" />
+          <p className="text-center">{emptyMessage}</p>
+        </div>
+      )}
+      
+      {/* Keyword list */}
+      {!isLoading && keywords.length > 0 && (
+        <div className="flex-grow overflow-auto">
+          <div className="divide-y divide-gray-200">
+            {keywords.map((keyword, index) => (
+              <KeywordItem 
+                key={index} 
+                keyword={keyword}
+                onToggle={onToggle}
+                onRemove={onRemove}
+              />
             ))}
           </div>
-        )}
-      </div>
+          
+          {/* More keywords button */}
+          {onMoreKeywords && (
+            <div className="p-3 border-t border-gray-200 bg-gray-50">
+              <button
+                onClick={() => onMoreKeywords()}
+                disabled={isLoadingMore}
+                className="w-full py-2 px-4 text-sm border border-blue-300 text-blue-600 rounded-md flex items-center justify-center hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isLoadingMore ? (
+                  <>
+                    <FiLoader className="animate-spin mr-2" size={16} />
+                    Loading more keywords...
+                  </>
+                ) : (
+                  <>
+                    <FiRefreshCw className="mr-2" size={16} />
+                    Find more keywords
+                  </>
+                )}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 } 

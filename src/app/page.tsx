@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import TopicInput from '@/components/topic-input';
 import KeywordBank from '@/components/keyword-bank';
 import ContentEditor from '@/components/content-editor';
-import AIActivityPanel from '@/components/AIActivityPanel';
+import AITransparencyPanel from '@/components/AITransparencyPanel';
+import SidePanel from '@/components/SidePanel';
 import { Keyword } from '@/types/keyword';
 import { FiInfo } from 'react-icons/fi';
 import Link from 'next/link';
@@ -19,7 +20,8 @@ export default function Home() {
   const [content, setContent] = useState('');
   const [isLoadingKeywords, setIsLoadingKeywords] = useState(false);
   const [isGeneratingContent, setIsGeneratingContent] = useState(false);
-  const [isActivityPanelOpen, setIsActivityPanelOpen] = useState(false);
+  const [isAnalyzingContent, setIsAnalyzingContent] = useState(false);
+  const [isLoadingMoreKeywords, setIsLoadingMoreKeywords] = useState(false);
 
   // Access the AI transparency context
   const { 
@@ -72,7 +74,7 @@ export default function Home() {
       const aiData = await aiResponse.json();
       
       // Add placeholders for metrics
-      const keywordsWithLoadingMetrics = aiData.keywords.map((keyword: { keyword: string }) => ({
+      const keywordsWithLoadingMetrics = aiData.keywords.map((keyword: any) => ({
         keyword: keyword.keyword,
         volume: 0,
         difficulty: 0,
@@ -235,7 +237,7 @@ export default function Home() {
   const analyzeContent = async (contentText: string, parentOperationId?: string) => {
     if (!contentText.trim()) return;
     
-    setIsGeneratingContent(true);
+    setIsAnalyzingContent(true);
     
     // Create a new operation or use a child operation format if part of a parent operation
     const operationId = parentOperationId 
@@ -287,7 +289,7 @@ export default function Home() {
         ...suggestedKeywords.map(k => k.keyword.toLowerCase())
       ];
       
-      const newKeywords = data.keywords.filter((k: { keyword: string }) => 
+      const newKeywords = data.keywords.filter((k: any) => 
         !existingKeywordTexts.includes(k.keyword.toLowerCase())
       );
       
@@ -295,7 +297,7 @@ export default function Home() {
       
       if (newKeywords.length > 0) {
         // Enrich and add new keywords to used keywords (instead of suggested)
-        const enrichedKeywords = newKeywords.map((k: { keyword: string }) => ({
+        const enrichedKeywords = newKeywords.map((k: any) => ({
           keyword: k.keyword,
           volume: 0,
           difficulty: 0,
@@ -371,7 +373,7 @@ export default function Home() {
       console.error('Error analyzing content:', error);
       failOperation(operationId, `Failed to analyze content: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
-      setIsGeneratingContent(false);
+      setIsAnalyzingContent(false);
     }
   };
 
@@ -379,7 +381,7 @@ export default function Home() {
   const fetchMoreKeywords = async () => {
     if (!topic.trim()) return;
     
-    setIsGeneratingContent(true);
+    setIsLoadingMoreKeywords(true);
     
     // Create a new operation in the transparency panel
     const operationId = addOperation({
@@ -419,7 +421,7 @@ export default function Home() {
       
       if (data.keywords && data.keywords.length > 0) {
         // Add the new keywords to the suggested list
-        const newKeywords = data.keywords.map((k: { keyword: string }) => ({
+        const newKeywords = data.keywords.map((k: any) => ({
           keyword: k.keyword,
           volume: 0,
           difficulty: 0,
@@ -483,7 +485,7 @@ export default function Home() {
       console.error('Error fetching more keywords:', error);
       failOperation(operationId, `Failed to find additional keywords: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
-      setIsGeneratingContent(false);
+      setIsLoadingMoreKeywords(false);
     }
   };
 
@@ -504,12 +506,9 @@ export default function Home() {
   };
 
   // Move keyword to negative list
-  const handleAddToNegative = (keyword: Keyword) => {
-    // Check if it's from suggested or used keywords
-    const inSuggested = suggestedKeywords.some(k => k.keyword === keyword.keyword);
-    
+  const handleAddToNegative = (keyword: Keyword, source: 'suggested' | 'used') => {
     // Remove from original source
-    if (inSuggested) {
+    if (source === 'suggested') {
       setSuggestedKeywords(prev => prev.filter(k => k.keyword !== keyword.keyword));
     } else {
       setUsedKeywords(prev => prev.filter(k => k.keyword !== keyword.keyword));
@@ -531,69 +530,60 @@ export default function Home() {
   };
 
   return (
-    <main className="container mx-auto p-6">
-      <div className="mb-6 flex justify-between items-center">
+    <div className="max-w-7xl mx-auto p-6 pb-24">
+      <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">SEO Content Editor</h1>
-        <Link href="/test-tools" className="text-blue-600 hover:underline text-sm">Test Tools</Link>
+        <Link href="/test-tools" className="text-blue-600 hover:underline flex items-center">
+          <FiInfo className="mr-1" /> Tools
+        </Link>
       </div>
-      
-      <div className="bg-blue-50 border border-blue-200 rounded-md p-4 mb-6 flex items-start">
-        <FiInfo className="text-blue-500 mt-1 mr-3 flex-shrink-0" />
-        <div className="text-sm">
-          <p className="font-medium text-blue-800">How to use this editor:</p>
-          <ol className="list-decimal pl-5 mt-1 text-blue-700">
-            <li>Enter a topic and click &quot;Generate Keywords&quot;</li>
-            <li>Select keywords you want to include in your content</li>
-            <li>Click &quot;Generate Content&quot; to create SEO-optimized content</li>
-            <li>Edit the content as needed - keywords will be highlighted</li>
-          </ol>
-        </div>
-      </div>
-      
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="md:col-span-1 space-y-6">
-          <div className="border rounded-md p-4 bg-white shadow-sm">
-            <h2 className="text-xl font-semibold mb-4">Topic & Keywords</h2>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-1">
+          <div className="space-y-6">
             <TopicInput 
-              topic={topic} 
-              onTopicChange={setTopic} 
               onSubmit={handleTopicSubmit} 
+              isLoading={isLoadingKeywords} 
+            />
+            
+            <KeywordBank 
+              title="Suggested Keywords" 
+              keywords={suggestedKeywords}
+              onToggle={handleSuggestedKeywordToggle}
+              onRemove={(keyword) => handleAddToNegative(keyword, 'suggested')}
               isLoading={isLoadingKeywords}
+              loadingMessage="Finding keywords..."
+              emptyMessage="Enter a topic to get keyword suggestions"
+              onMoreKeywords={fetchMoreKeywords}
+              isLoadingMore={isLoadingMoreKeywords}
+            />
+            
+            <KeywordBank 
+              title="Used Keywords" 
+              keywords={usedKeywords}
+              onToggle={() => {}}
+              onRemove={(keyword) => handleAddToNegative(keyword, 'used')}
+              isLoading={false}
+              emptyMessage="No keywords in use yet"
+            />
+            
+            <KeywordBank 
+              title="Negative Keywords" 
+              keywords={negativeKeywords}
+              onToggle={() => {}}
+              onRemove={handleRemoveFromNegative}
+              isLoading={false}
+              emptyMessage="No negative keywords yet"
+              variant="negative"
             />
           </div>
-          
-          <KeywordBank 
-            title="Suggested Keywords" 
-            keywords={suggestedKeywords} 
-            onToggle={handleSuggestedKeywordToggle} 
-            onAddToNegative={handleAddToNegative}
-            isLoading={isLoadingKeywords}
-            showCheckboxes={true}
-          />
-          
-          <KeywordBank 
-            title="Used Keywords" 
-            keywords={usedKeywords} 
-            onToggle={() => {}} 
-            onAddToNegative={handleAddToNegative}
-            showCheckboxes={false}
-          />
-          
-          <KeywordBank 
-            title="Negative Keywords" 
-            keywords={negativeKeywords} 
-            onToggle={() => {}} 
-            onRemove={handleRemoveFromNegative}
-            showCheckboxes={false}
-            isNegative={true}
-          />
         </div>
         
-        <div className="md:col-span-2">
-          <ContentEditor
-            content={content}
+        <div className="lg:col-span-2">
+          <ContentEditor 
+            content={content} 
             onContentChange={handleContentChange}
-            isLoading={isGeneratingContent}
+            isLoading={isGeneratingContent || isAnalyzingContent}
             usedKeywords={usedKeywords}
             negativeKeywords={negativeKeywords}
             onGenerate={generateContent}
@@ -602,13 +592,16 @@ export default function Home() {
           />
         </div>
       </div>
-      
-      {/* AI Activity Panel - as a side panel */}
-      <AIActivityPanel 
-        operations={operations} 
-        isOpen={isActivityPanelOpen}
-        onToggle={() => setIsActivityPanelOpen(!isActivityPanelOpen)}
-      />
-    </main>
+
+      {/* Side panel with AI Transparency Panel */}
+      <SidePanel title="AI Transparency" defaultOpen={false}>
+        <AITransparencyPanel 
+          operations={operations} 
+          isExpanded={true}
+          onToggleExpand={() => {}}
+        />
+      </SidePanel>
+    </div>
   );
 }
+
