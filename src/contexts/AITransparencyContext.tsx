@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, ReactNode, useContext, useState, useCallback } from 'react';
+import { createContext, ReactNode, useContext, useState, useCallback, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 
 export type AIOperation = {
@@ -23,21 +23,37 @@ type AITransparencyContextType = {
   clearOperations: () => void;
 };
 
-const AITransparencyContext = createContext<AITransparencyContextType | undefined>(undefined);
+// Create a default context with empty implementations
+const defaultContextValue: AITransparencyContextType = {
+  operations: [],
+  addOperation: () => '',
+  updateOperation: () => {},
+  updateProgress: () => {},
+  completeOperation: () => {},
+  failOperation: () => {},
+  clearOperations: () => {}
+};
+
+const AITransparencyContext = createContext<AITransparencyContextType>(defaultContextValue);
 
 export const useAITransparency = () => {
   const context = useContext(AITransparencyContext);
-  if (context === undefined) {
-    throw new Error('useAITransparency must be used within an AITransparencyProvider');
-  }
   return context;
 };
 
 export const AITransparencyProvider = ({ children }: { children: ReactNode }) => {
   const [operations, setOperations] = useState<AIOperation[]>([]);
+  const [isClient, setIsClient] = useState(false);
+
+  // Use effect to handle SSR
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   // Add a new operation and return its ID
   const addOperation = useCallback((operation: Omit<AIOperation, 'id' | 'timestamp'>) => {
+    if (!isClient) return ''; // Skip during SSR
+    
     const id = uuidv4();
     const newOperation: AIOperation = {
       ...operation,
@@ -47,28 +63,34 @@ export const AITransparencyProvider = ({ children }: { children: ReactNode }) =>
     
     setOperations(prev => [newOperation, ...prev]);
     return id;
-  }, []);
+  }, [isClient]);
 
   // Update an existing operation
   const updateOperation = useCallback((id: string, updates: Partial<AIOperation>) => {
+    if (!isClient) return; // Skip during SSR
+    
     setOperations(prev => 
       prev.map(op => 
         op.id === id ? { ...op, ...updates } : op
       )
     );
-  }, []);
+  }, [isClient]);
 
   // Update the progress of an operation
   const updateProgress = useCallback((id: string, progress: number) => {
+    if (!isClient) return; // Skip during SSR
+    
     setOperations(prev => 
       prev.map(op => 
         op.id === id ? { ...op, progress: Math.min(100, Math.max(0, progress)) } : op
       )
     );
-  }, []);
+  }, [isClient]);
 
   // Mark an operation as completed
   const completeOperation = useCallback((id: string, detail?: string) => {
+    if (!isClient) return; // Skip during SSR
+    
     setOperations(prev => 
       prev.map(op => 
         op.id === id 
@@ -82,10 +104,12 @@ export const AITransparencyProvider = ({ children }: { children: ReactNode }) =>
           : op
       )
     );
-  }, []);
+  }, [isClient]);
 
   // Mark an operation as failed
   const failOperation = useCallback((id: string, errorDetail?: string) => {
+    if (!isClient) return; // Skip during SSR
+    
     setOperations(prev => 
       prev.map(op => 
         op.id === id 
@@ -98,12 +122,14 @@ export const AITransparencyProvider = ({ children }: { children: ReactNode }) =>
           : op
       )
     );
-  }, []);
+  }, [isClient]);
 
   // Clear all operations
   const clearOperations = useCallback(() => {
+    if (!isClient) return; // Skip during SSR
+    
     setOperations([]);
-  }, []);
+  }, [isClient]);
 
   const value = {
     operations,
