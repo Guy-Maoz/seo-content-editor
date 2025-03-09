@@ -7,18 +7,21 @@ const openai = new OpenAI({
 });
 
 export async function POST() {
+  console.log('[API] /api/thread/create: Endpoint called');
+  
   try {
+    console.log('[API] Attempting to create thread with OpenAI');
     // Create a new thread
     const thread = await openai.beta.threads.create();
     
-    console.log(`Created new thread: ${thread.id}`);
+    console.log(`[API] Created new thread: ${thread.id}`);
     
     return NextResponse.json({ 
       threadId: thread.id,
       success: true
     });
   } catch (error) {
-    console.error('Error creating thread:', error);
+    console.error('[API] Error creating thread:', error);
     return NextResponse.json(
       { error: 'Failed to create thread', success: false },
       { status: 500 }

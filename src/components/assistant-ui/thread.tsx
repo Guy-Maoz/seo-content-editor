@@ -17,12 +17,22 @@ import {
   SendHorizontalIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useEffect } from "react";
 
 import { Button } from "@/components/ui/button";
 import { MarkdownText } from "@/components/assistant-ui/markdown-text";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
 
 export const Thread: FC = () => {
+  console.log('[Thread] Thread component rendering');
+  
+  useEffect(() => {
+    console.log('[Thread] Thread component mounted');
+    return () => {
+      console.log('[Thread] Thread component unmounted');
+    };
+  }, []);
+
   return (
     <ThreadPrimitive.Root
       className="bg-background box-border flex h-full flex-col overflow-hidden"

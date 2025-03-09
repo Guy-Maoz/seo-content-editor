@@ -13,29 +13,49 @@ interface ChatAssistantProps {
 }
 
 const ChatAssistant: React.FC<ChatAssistantProps> = ({ isExpanded = true }) => {
+  console.log('[ChatAssistant] Component rendering');
   const [isLoading, setIsLoading] = useState(true);
   const { threadId, isThreadInitialized } = useThreadContext();
   const { addOperation, completeOperation, failOperation } = useAITransparency();
 
+  console.log('[ChatAssistant] Initial state:', { 
+    threadId: threadId ? threadId.substring(0, 8) + '...' : null, 
+    isThreadInitialized,
+    isLoading 
+  });
+
   // Wait for thread to be initialized
   useEffect(() => {
+    console.log('[ChatAssistant] useEffect fired - thread state changed:', { 
+      threadId: threadId ? threadId.substring(0, 8) + '...' : null, 
+      isThreadInitialized 
+    });
+    
     if (threadId && isThreadInitialized) {
+      console.log('[ChatAssistant] Thread is initialized, setting isLoading=false');
       setIsLoading(false);
+    } else {
+      console.log('[ChatAssistant] Still waiting for thread initialization');
     }
   }, [threadId, isThreadInitialized]);
   
   // Log operations when starting a chat
   useEffect(() => {
+    console.log('[ChatAssistant] threadId effect triggered:', !!threadId);
     if (threadId) {
+      console.log('[ChatAssistant] Adding chat initialization operation');
       const operationId = addOperation({
         type: 'info',
         status: 'completed',
         message: 'Chat session initialized',
         detail: `Using thread: ${threadId}`,
       });
+      console.log('[ChatAssistant] Operation added:', operationId);
     }
   }, [threadId, addOperation]);
 
+  console.log('[ChatAssistant] Creating runtime with threadId:', threadId ? `${threadId.substring(0, 8)}...` : null);
+  
   // Create a custom runtime that includes the threadId in the request body
   const runtime = useChatRuntime({
     api: "/api/chat",
@@ -58,7 +78,7 @@ Just type your question or select a task to get started!`,
     ],
     onResponse: (response) => {
       // Log the response for debugging
-      console.log('Chat response received', response.status);
+      console.log('[ChatAssistant] Chat response received', response.status);
       
       // Log operation for the response
       if (response.ok) {
@@ -86,7 +106,10 @@ Just type your question or select a task to get started!`,
     }
   });
 
+  console.log('[ChatAssistant] Runtime created, current loading state:', isLoading);
+
   if (isLoading) {
+    console.log('[ChatAssistant] Rendering loading state');
     return (
       <div className="h-full flex flex-col items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mb-3"></div>
@@ -95,6 +118,7 @@ Just type your question or select a task to get started!`,
     );
   }
 
+  console.log('[ChatAssistant] Rendering Thread component');
   return (
     <div className="h-full flex flex-col">
       <div className="mb-4 flex items-center">

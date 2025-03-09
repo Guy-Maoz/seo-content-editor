@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
 
 // Initialize OpenAI client
-const openai = new OpenAI({
+const openAI = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
@@ -12,8 +12,66 @@ const ASSISTANT_ID = 'asst_JXBmxj6nBTPncEpjwJmtzLTr';
 // Set increased function timeout
 export const maxDuration = 60; // Set maximum duration to 60 seconds
 
-export async function POST(req: Request) {
+// Helper function to delay execution
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+// Keyword metrics interface
+interface KeywordMetrics {
+  keyword: string;
+  volume: number;
+  difficulty: number;
+  cpc: number;
+  isFallback?: boolean;
+  error?: string;
+}
+
+// Checks for any active runs on a thread and cancels them if needed
+async function checkForActiveRuns(threadId: string, requestId: string): Promise<void> {
   try {
+    console.log(`[${requestId}] Checking for active runs on thread ${threadId}`);
+    
+    // Get active runs for this thread
+    const runsList = await openAI.beta.threads.runs.list(threadId);
+    
+    // Find runs that are in progress
+    const activeRuns = runsList.data.filter(run => 
+      ['queued', 'in_progress', 'requires_action'].includes(run.status)
+    );
+    
+    if (activeRuns.length > 0) {
+      console.log(`[${requestId}] Found ${activeRuns.length} active runs that need to be cancelled`);
+      
+      // Cancel each active run
+      for (const run of activeRuns) {
+        try {
+          console.log(`[${requestId}] Cancelling run ${run.id}`);
+          await openAI.beta.threads.runs.cancel(threadId, run.id);
+          console.log(`[${requestId}] Successfully cancelled run ${run.id}`);
+          
+          // Wait a moment to ensure the cancellation is processed
+          await delay(500);
+        } catch (cancelError) {
+          console.error(`[${requestId}] Error cancelling run ${run.id}:`, cancelError);
+          // Continue with other runs even if one fails
+        }
+      }
+      
+      // Wait a bit to make sure OpenAI has processed the cancellations
+      await delay(1000);
+    } else {
+      console.log(`[${requestId}] No active runs found on thread`);
+    }
+  } catch (error) {
+    console.error(`[${requestId}] Error checking for active runs:`, error);
+    // Don't throw, just continue with the message creation
+  }
+}
+
+export async function POST(req: Request) {
+  const requestId = `req_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+  
+  try {
+    console.log(`[${requestId}] Processing chat request`);
     const { messages, threadId } = await req.json();
     
     if (!threadId) {
@@ -32,344 +90,392 @@ export async function POST(req: Request) {
       );
     }
 
+    // Check for and cancel any active runs before adding new messages
+    await checkForActiveRuns(threadId, requestId);
+
     // Add the message to the thread
-    await openai.beta.threads.messages.create(threadId, {
+    await openAI.beta.threads.messages.create(threadId, {
       role: "user",
       content: latestUserMessage.content
     });
 
     // Create a run in the thread
-    const run = await openai.beta.threads.runs.create(threadId, {
+    const run = await openAI.beta.threads.runs.create(threadId, {
       assistant_id: ASSISTANT_ID
     });
 
-    // Stream the response
+    // Set up streaming response
+    const encoder = new TextEncoder();
+    
     const stream = new ReadableStream({
       async start(controller) {
-        // Helper function to send a message part to the stream
-        const sendMessagePart = (type: string, content: any) => {
+        // Create a unique request ID to track this processing
+        const processingId = `proc_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+        console.log(`[${requestId}] Starting stream processing ${processingId}`);
+        
+        // Flag to track if controller has been closed
+        let isClosed = false;
+        
+        // Function to check if controller can be used
+        const canUseController = () => !isClosed;
+        
+        // Function to safely send a message
+        const sendMessage = (type: string, content: any) => {
+          if (!canUseController()) {
+            console.log(`[${requestId}:${processingId}] Skipping message ${type} - controller already closed`);
+            return;
+          }
+          
           try {
-            controller.enqueue(new TextEncoder().encode(`${type}:${JSON.stringify(content)}\n`));
-          } catch (error) {
-            console.error('Error sending message part:', error);
-            // Don't throw again, just log the error
+            const message = `${type}:${JSON.stringify(content)}\n`;
+            controller.enqueue(encoder.encode(message));
+          } catch (err) {
+            console.error(`[${requestId}:${processingId}] Error sending message type ${type}:`, err);
+            isClosed = true;
           }
         };
         
-        // Safer function to send a message part that won't fail if controller is closed
-        const safeSendMessagePart = (type: string, content: any) => {
-          try {
-            sendMessagePart(type, content);
-          } catch (error) {
-            console.error(`Failed to send ${type} message:`, error);
-            // Just log, don't propagate error
+        // Function to safely close the controller
+        const closeController = () => {
+          if (canUseController()) {
+            try {
+              console.log(`[${requestId}:${processingId}] Closing controller gracefully`);
+              controller.close();
+              isClosed = true;
+            } catch (err) {
+              console.error(`[${requestId}:${processingId}] Error closing controller:`, err);
+              isClosed = true;
+            }
+          } else {
+            console.log(`[${requestId}:${processingId}] Controller already closed, skipping close`);
           }
         };
-
+        
         try {
-          // Set up polling with a maximum number of attempts and time between checks
-          const maxPollingAttempts = 60; // Maximum 60 checks
-          const pollingIntervalMs = 1000; // Check every 1 second
-          let pollingAttempts = 0;
+          console.log(`[${requestId}] Processing run ${run.id} for thread ${threadId}`);
           
-          // First, send message ID
-          sendMessagePart('f', { messageId: `msg-${Date.now()}` });
+          // Send initial message ID
+          sendMessage('f', { messageId: `msg-${Date.now()}` });
           
-          let runStatus = await openai.beta.threads.runs.retrieve(threadId, run.id);
+          // Poll for run completion
+          const maxAttempts = 60;
+          const interval = 1000;
+          let attempts = 0;
+          let runStatus = await openAI.beta.threads.runs.retrieve(threadId, run.id);
           
-          // Poll for the Run completion with a limit on total attempts
-          while (
-            pollingAttempts < maxPollingAttempts && 
-            runStatus.status !== 'completed' && 
-            runStatus.status !== 'failed' && 
-            runStatus.status !== 'cancelled'
-          ) {
-            // Increment attempt counter
-            pollingAttempts++;
+          while (attempts < maxAttempts && 
+                 runStatus.status !== 'completed' && 
+                 runStatus.status !== 'failed' && 
+                 runStatus.status !== 'cancelled' && 
+                 canUseController()) {
             
-            // Wait before checking again
-            await new Promise(resolve => setTimeout(resolve, pollingIntervalMs));
+            console.log(`Run status: ${runStatus.status} (Attempt ${attempts + 1}/${maxAttempts})`);
+            attempts++;
             
-            // Check run status
-            runStatus = await openai.beta.threads.runs.retrieve(threadId, run.id);
-            console.log(`Run status: ${runStatus.status} (Attempt ${pollingAttempts}/${maxPollingAttempts})`);
-            
-            // Handle if run requires action (e.g., function calls)
+            // Handle tool calls
             if (runStatus.status === 'requires_action') {
-              console.log('Function calls required. Processing tool calls...');
+              console.log("Processing tool calls...");
               
               const toolCalls = runStatus.required_action?.submit_tool_outputs?.tool_calls;
-              
               if (toolCalls && toolCalls.length > 0) {
                 const toolOutputs: { tool_call_id: string; output: string }[] = [];
                 
-                // Process each tool call
                 for (const toolCall of toolCalls) {
-                  try {
-                    if (toolCall.type === 'function') {
-                      // Parse the function arguments
+                  if (!canUseController()) break;
+                  
+                  if (toolCall.type === 'function') {
+                    // Send notification about tool call
+                    sendMessage('t', {
+                      id: toolCall.id,
+                      type: toolCall.type,
+                      function: toolCall.function
+                    });
+                    
+                    try {
                       const args = JSON.parse(toolCall.function.arguments || '{}');
-                      let output: any = null;
+                      let output: KeywordMetrics | { error: string } | null = null;
                       
-                      // Send the tool call so the client knows we're processing it
-                      try {
-                        safeSendMessagePart('t', {
-                          id: toolCall.id,
-                          type: toolCall.type,
-                          function: toolCall.function
-                        });
-                      } catch (sendError) {
-                        console.error(`Error sending tool call notification for ${toolCall.function.name}:`, sendError);
-                        // Continue despite error in sending
-                      }
-                      
+                      // Process tool call based on function name
                       if (toolCall.function.name === 'get_keyword_metrics') {
+                        const baseUrl = process.env.NODE_ENV === 'production' 
+                          ? process.env.NEXT_PUBLIC_API_BASE_URL || 'https://similarweb-content-seo.netlify.app'  
+                          : `http://localhost:${process.env.PORT || 3000}`;
+                        
+                        console.log(`[${requestId}] Calling keyword metrics API for keyword: "${args.keyword}"`);
+                        
                         try {
-                          // Call our keyword metrics API
-                          const baseUrl = process.env.NODE_ENV === 'production' 
-                            ? process.env.NEXT_PUBLIC_API_BASE_URL || 'https://similarweb-content-seo.netlify.app'  
-                            : `http://localhost:${process.env.PORT || 3000}`;
+                          // Before making the API call, check if controller is still usable
+                          if (!canUseController()) {
+                            console.log(`[${requestId}:${processingId}] Skipping API call - controller already closed`);
+                            continue; // Use continue instead of break to move to next tool call
+                          }
                           
-                          const response = await fetch(`${baseUrl}/api/keyword-metrics`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ keyword: args.keyword })
-                          });
+                          // Create a local copy of the API response
+                          let apiResponse: Response | null = null;
+                          let responseData = null;
                           
-                          if (response.ok) {
-                            output = await response.json();
-                          } else {
-                            // If API fails, create fallback data
-                            console.error(`Keyword metrics API error: ${response.status} ${response.statusText}`);
+                          try {
+                            console.log(`[${requestId}:${processingId}] Starting API call to keyword metrics`);
+                            apiResponse = await fetch(`${baseUrl}/api/tools/keyword-metrics`, {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ keyword: args.keyword })
+                            });
+                            
+                            if (apiResponse && apiResponse.ok) {
+                              responseData = await apiResponse.json();
+                              console.log(`[${requestId}:${processingId}] Got metrics for "${args.keyword}":`, responseData);
+                              output = responseData;
+                            } else if (apiResponse) {
+                              console.error(`[${requestId}:${processingId}] API error: ${apiResponse.status} ${apiResponse.statusText}`);
+                              output = { 
+                                keyword: args.keyword,
+                                volume: 1000, 
+                                difficulty: 50,
+                                cpc: 0.5,
+                                isFallback: true,
+                                error: `API error: ${apiResponse.status}`
+                              };
+                            }
+                          } catch (fetchError) {
+                            console.error(`[${requestId}:${processingId}] Fetch error:`, fetchError);
                             output = { 
-                              keyword: args.keyword || 'unknown',
+                              keyword: args.keyword,
                               volume: 1000, 
                               difficulty: 50,
                               cpc: 0.5,
-                              isFallback: true
+                              isFallback: true,
+                              error: fetchError instanceof Error ? fetchError.message : 'Unknown fetch error'
                             };
                           }
-                        } catch (toolError) {
-                          console.error('Error in get_keyword_metrics tool:', toolError);
+                        } catch (apiError: any) {
+                          console.error(`[${requestId}] API call failed for keyword "${args.keyword}":`, apiError);
                           
-                          // Create fallback response
+                          // Check controller state before creating fallback output
+                          if (!canUseController()) {
+                            console.log(`[${requestId}] Skipping fallback output - controller closed`);
+                            break;
+                          }
+                          
                           output = { 
-                            keyword: args.keyword || 'unknown',
+                            keyword: args.keyword,
                             volume: 1000, 
                             difficulty: 50,
                             cpc: 0.5,
                             isFallback: true,
-                            error: toolError instanceof Error ? toolError.message : 'Unknown error'
-                          };
-                        }
-                        
-                        // Add to tool outputs regardless of success/failure
-                        toolOutputs.push({
-                          tool_call_id: toolCall.id,
-                          output: JSON.stringify(output)
-                        });
-                        
-                        // Try to send the result, with special error handling
-                        try {
-                          safeSendMessagePart('r', {
-                            toolCallId: toolCall.id,
-                            result: output
-                          });
-                        } catch (sendError) {
-                          console.error('Error sending tool result:', sendError);
-                          // Just log, don't throw
-                        }
-                      }
-                      else if (toolCall.function.name === 'generate_keywords') {
-                        // Call our keyword generation API
-                        const baseUrl = process.env.NODE_ENV === 'production' 
-                          ? process.env.NEXT_PUBLIC_API_BASE_URL || 'https://similarweb-content-seo.netlify.app'  
-                          : `http://localhost:${process.env.PORT || 3000}`;
-                        
-                        const response = await fetch(`${baseUrl}/api/keywords`, {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ 
-                            topic: args.topic,
-                            count: args.count || 10 
-                          })
-                        });
-                        
-                        if (response.ok) {
-                          output = await response.json();
-                        } else {
-                          // If API fails, return error
-                          output = { 
-                            error: `Failed to generate keywords for topic: ${args.topic}`,
-                            keywords: []
+                            error: apiError.message || 'Unknown API error'
                           };
                         }
                       }
-                      else if (toolCall.function.name === 'generate_content') {
-                        // Call our content generation API
-                        const baseUrl = process.env.NODE_ENV === 'production' 
-                          ? process.env.NEXT_PUBLIC_API_BASE_URL || 'https://similarweb-content-seo.netlify.app'  
-                          : `http://localhost:${process.env.PORT || 3000}`;
-                        
-                        const response = await fetch(`${baseUrl}/api/content/generate`, {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ 
-                            keywords: args.keywords,
-                            contentType: args.contentType || 'blog post',
-                            tone: args.tone || 'informative'
-                          })
-                        });
-                        
-                        if (response.ok) {
-                          output = await response.json();
-                        } else {
-                          // If API fails, return error
-                          output = { 
-                            error: `Failed to generate content`,
-                            content: ''
-                          };
-                        }
-                      }
-                      else if (toolCall.function.name === 'analyze_seo') {
-                        // Call our SEO analysis API
-                        const baseUrl = process.env.NODE_ENV === 'production' 
-                          ? process.env.NEXT_PUBLIC_API_BASE_URL || 'https://similarweb-content-seo.netlify.app'  
-                          : `http://localhost:${process.env.PORT || 3000}`;
-                        
-                        const response = await fetch(`${baseUrl}/api/keywords/extract`, {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ 
-                            content: args.content,
-                            topic: 'SEO analysis',
-                            keywords: args.keywords || []
-                          })
-                        });
-                        
-                        if (response.ok) {
-                          output = await response.json();
-                        } else {
-                          // If API fails, return error
-                          output = { 
-                            error: `Failed to analyze content`,
-                            analysis: {},
-                            suggestions: []
-                          };
-                        }
-                      }
+                      // Add other function handlers as needed (generate_keywords, etc.)
                       else {
-                        // Unknown function
+                        if (!canUseController()) {
+                          console.log(`[${requestId}] Skipping unknown function handling - controller closed`);
+                          break;
+                        }
                         output = { error: `Unknown function: ${toolCall.function.name}` };
                       }
                       
-                      // Send tool result to client if we haven't already
+                      // Save output for submission to OpenAI
                       if (output) {
-                        safeSendMessagePart('r', {
-                          toolCallId: toolCall.id,
-                          result: output
-                        });
+                        // First check if controller is still usable before trying to save output
+                        if (!canUseController()) {
+                          console.log(`[${requestId}:${processingId}] Skipping tool output - controller already closed`);
+                          continue; // Skip to next tool call but keep the array intact
+                        }
+
+                        // Add tool output for submission to OpenAI
+                        try {
+                          toolOutputs.push({
+                            tool_call_id: toolCall.id,
+                            output: JSON.stringify(output)
+                          });
+                          
+                          console.log(`[${requestId}:${processingId}] Added tool output to submission queue`);
+                          
+                          // Check controller again before sending result to client
+                          if (canUseController()) {
+                            // Send result to client
+                            console.log(`[${requestId}:${processingId}] Sending tool result for ${toolCall.function.name}`);
+                            sendMessage('r', {
+                              toolCallId: toolCall.id,
+                              result: output
+                            });
+                          } else {
+                            console.log(`[${requestId}:${processingId}] Skipped sending result - controller closed`);
+                          }
+                        } catch (outputError) {
+                          console.error(`[${requestId}:${processingId}] Error processing tool output:`, outputError);
+                        }
                       }
-                    } catch (toolProcessingError) {
-                      console.error(`Error processing tool call ${toolCall.function?.name || 'unknown'}:`, toolProcessingError);
+                    } catch (toolError: any) {
+                      console.error(`[${requestId}] Error processing tool call ${toolCall.function.name}:`, toolError);
                       
-                      // Add error information to tool outputs
-                      try {
+                      // Check controller state before processing error
+                      if (!canUseController()) {
+                        console.log(`[${requestId}] Skipping error handling - controller closed`);
+                        continue;
+                      }
+                      
+                      // Add error output
+                      const errorOutput = {
+                        error: toolError.message || 'Unknown tool error'
+                      };
+                      
+                      // Check controller again before adding to outputs
+                      if (canUseController()) {
                         toolOutputs.push({
                           tool_call_id: toolCall.id,
-                          output: JSON.stringify({ 
-                            error: toolProcessingError instanceof Error 
-                              ? toolProcessingError.message 
-                              : 'Unknown error processing tool call'
-                          })
+                          output: JSON.stringify(errorOutput)
                         });
                         
-                        // Try to send the error result
-                        safeSendMessagePart('r', {
+                        // Send error result to client
+                        sendMessage('r', {
                           toolCallId: toolCall.id,
-                          result: { 
-                            error: toolProcessingError instanceof Error 
-                              ? toolProcessingError.message 
-                              : 'Unknown error processing tool call'
-                          }
+                          result: errorOutput
                         });
-                      } catch (outputError) {
-                        console.error('Error sending tool error result:', outputError);
-                        // Just log, don't throw
+                      }
+                    }
+                  }
+                }
+                
+                // Submit tool outputs to OpenAI
+                if (toolOutputs.length > 0) {
+                  try {
+                    console.log(`[${requestId}:${processingId}] Submitting ${toolOutputs.length} tool outputs to OpenAI`);
+                    
+                    // The controller might be closed but we can still try to submit the outputs to OpenAI
+                    await openAI.beta.threads.runs.submitToolOutputs(threadId, run.id, {
+                      tool_outputs: toolOutputs
+                    });
+                    
+                    console.log(`[${requestId}:${processingId}] Tool outputs submitted successfully`);
+                  } catch (submitError) {
+                    console.error(`[${requestId}:${processingId}] Error submitting tool outputs:`, submitError);
+                    
+                    // If we can't submit tool outputs, the assistant can't continue
+                    if (canUseController()) {
+                      sendMessage('3', `Error submitting tool outputs: ${submitError instanceof Error ? submitError.message : 'Unknown error'}`);
+                      sendMessage('d', { 
+                        finishReason: 'error', 
+                        usage: { promptTokens: 0, completionTokens: 0 } 
+                      });
+                      
+                      // We need to close the controller after sending the error
+                      closeController();
+                      
+                      // Skip the rest of the processing
+                      return;
+                    }
+                  }
+                }
+              }
+            }
+            
+            // Wait before checking again
+            await delay(interval);
+            
+            // Update run status
+            if (canUseController()) {
+              try {
+                runStatus = await openAI.beta.threads.runs.retrieve(threadId, run.id);
+              } catch (retrieveError) {
+                console.error(`[${requestId}] Error retrieving run status:`, retrieveError);
+                break; // Exit the polling loop on errors
+              }
+            } else {
+              console.log(`[${requestId}] Stopping poll loop - controller closed`);
+              break;
+            }
+          }
+          
+          // Process completed run
+          if (canUseController()) {
+            if (runStatus.status === 'completed') {
+              console.log(`[${requestId}] Run completed, fetching messages`);
+              
+              try {
+                // Get latest messages
+                const messages = await openAI.beta.threads.messages.list(threadId);
+                const assistantMessages = messages.data
+                  .filter(message => message.role === 'assistant')
+                  .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+                
+                if (assistantMessages.length > 0 && canUseController()) {
+                  const latestMessage = assistantMessages[0];
+                  
+                  // Stream message content
+                  for (const part of latestMessage.content) {
+                    if (part.type === 'text' && canUseController()) {
+                      // Stream text in small chunks for realistic effect
+                      const text = part.text.value;
+                      const chunkSize = 3;
+                      
+                      for (let i = 0; i < text.length && canUseController(); i += chunkSize) {
+                        const chunk = text.slice(i, i + chunkSize);
+                        sendMessage('0', chunk);
+                        await delay(10);
                       }
                     }
                   }
                   
-                  // Submit all tool outputs back to the assistant
-                  if (toolOutputs.length > 0) {
-                    await openai.beta.threads.runs.submitToolOutputs(threadId, run.id, {
-                      tool_outputs: toolOutputs
+                  if (canUseController()) {
+                    // Send completion message
+                    sendMessage('d', { 
+                      finishReason: 'stop', 
+                      usage: { promptTokens: 0, completionTokens: 0 } 
                     });
                   }
+                } else if (canUseController()) {
+                  console.log(`[${requestId}] No assistant messages found`);
+                  sendMessage('3', 'No assistant response found');
+                  sendMessage('d', { 
+                    finishReason: 'error', 
+                    usage: { promptTokens: 0, completionTokens: 0 } 
+                  });
                 }
+              } catch (messageError: any) {
+                console.error(`[${requestId}] Error fetching messages:`, messageError);
+                if (canUseController()) {
+                  sendMessage('3', `Error fetching messages: ${messageError.message || 'Unknown error'}`);
+                  sendMessage('d', { 
+                    finishReason: 'error', 
+                    usage: { promptTokens: 0, completionTokens: 0 } 
+                  });
+                }
+              }
+            } else {
+              console.log(`[${requestId}] Run ended with status: ${runStatus.status}`);
+              if (canUseController()) {
+                sendMessage('3', `Run ended with status: ${runStatus.status}`);
+                sendMessage('d', { 
+                  finishReason: 'error', 
+                  usage: { promptTokens: 0, completionTokens: 0 } 
+                });
               }
             }
           }
+        } catch (error: any) {
+          console.error(`[${requestId}] Error in chat stream:`, error);
           
-          // Get the assistant's response
-          if (runStatus.status === 'completed') {
-            const messages = await openai.beta.threads.messages.list(threadId);
-            
-            // Find the latest assistant message
-            const assistantMessages = messages.data
-              .filter(message => message.role === 'assistant')
-              .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-            
-            if (assistantMessages.length > 0) {
-              const latestMessage = assistantMessages[0];
-              
-              // Extract and stream text content from the message
-              if (latestMessage.content && latestMessage.content.length > 0) {
-                for (const contentPart of latestMessage.content) {
-                  if (contentPart.type === 'text') {
-                    // Split message into smaller chunks to simulate streaming
-                    const text = contentPart.text.value;
-                    const chunkSize = 5; // Characters per chunk
-                    
-                    for (let i = 0; i < text.length; i += chunkSize) {
-                      const chunk = text.slice(i, i + chunkSize);
-                      sendMessagePart('0', chunk);
-                      // Small delay to simulate streaming
-                      await new Promise(resolve => setTimeout(resolve, 10));
-                    }
-                  }
-                }
-              }
-            }
-            
-            // Send finish event
-            sendMessagePart('d', { finishReason: 'stop', usage: { promptTokens: 0, completionTokens: 0 } });
+          if (canUseController()) {
+            sendMessage('3', `Error: ${error.message || 'Unknown error'}`);
+            sendMessage('d', { 
+              finishReason: 'error', 
+              usage: { promptTokens: 0, completionTokens: 0 } 
+            });
           } else {
-            // Send error if run didn't complete
-            sendMessagePart('3', `Run did not complete successfully: ${runStatus.status}`);
-            sendMessagePart('d', { finishReason: 'error', usage: { promptTokens: 0, completionTokens: 0 } });
+            console.log(`[${requestId}] Error occurred but controller already closed, skipping error messages`);
           }
-        } catch (error) {
-          console.error('Error in chat stream:', error);
-          // Send error message
-          try {
-            sendMessagePart('3', `Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
-            sendMessagePart('d', { finishReason: 'error', usage: { promptTokens: 0, completionTokens: 0 } });
-          } catch (sendError) {
-            console.error('Error sending error message:', sendError);
-          } finally {
-            try {
-              controller.close();
-            } catch (closeError) {
-              console.error('Error closing controller:', closeError);
-            }
-          }
+        } finally {
+          // Always close controller at the end
+          console.log(`[${requestId}] Request complete, cleaning up resources`);
+          closeController();
         }
       }
     });
-
+    
     return new Response(stream);
-
   } catch (error) {
     console.error("Error in chat API:", error);
     return NextResponse.json(
