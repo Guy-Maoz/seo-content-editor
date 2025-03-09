@@ -10,6 +10,13 @@
     "postinstall": "next telemetry disable"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^1.2.1",
+    "@assistant-ui/react": "^0.8.4",
+    "@assistant-ui/react-ai-sdk": "^0.8.0",
+    "@assistant-ui/react-markdown": "^0.8.0",
+    "@nlux/react": "^2.17.1",
+    "@radix-ui/react-slot": "^1.1.2",
+    "@radix-ui/react-tooltip": "^1.1.8",
     "@tailwindcss/typography": "^0.5.16",
     "@tiptap/extension-color": "^2.11.5",
     "@tiptap/extension-highlight": "^2.11.5",
@@ -18,13 +25,21 @@
     "@tiptap/extension-text-style": "^2.11.5",
     "@tiptap/react": "^2.11.5",
     "@tiptap/starter-kit": "^2.11.5",
+    "ai": "^4.1.54",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.479.0",
     "next": "15.2.1",
     "openai": "^4.86.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-icons": "^5.5.0",
+    "remark-gfm": "^4.0.1",
+    "tailwind-merge": "^3.0.2",
+    "tailwindcss-animate": "^1.0.7",
     "tiptap": "^1.32.2",
-    "uuid": "^11.1.0"
+    "uuid": "^11.1.0",
+    "zod": "^3.24.2"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

@@ -5,11 +5,13 @@ import TopicInput from '@/components/topic-input';
 import KeywordBank from '@/components/keyword-bank';
 import ContentEditor from '@/components/content-editor';
 import AIPanel from '@/components/AIPanel';
+import ChatAssistant from '@/components/ChatAssistant';
 import { Keyword } from '@/types/keyword';
 import { FiInfo, FiChevronLeft, FiChevronRight } from 'react-icons/fi';
 import Link from 'next/link';
 import { useAITransparency } from '@/contexts/AITransparencyContext';
 import { apiFetch } from '@/utils/api';
+import { useThreadContext } from '@/contexts/ThreadContext';
 
 export default function Home() {
   const [topic, setTopic] = useState('');
@@ -24,6 +26,8 @@ export default function Home() {
   const [isTransparencyPanelExpanded, setIsTransparencyPanelExpanded] = useState(false);
   const [isSidePanelVisible, setIsSidePanelVisible] = useState(true);
   const [isClient, setIsClient] = useState(false);
+  const [isDevMode, setIsDevMode] = useState(false);
+  const { threadId } = useThreadContext();
 
   // Add effect to handle server-side rendering
   useEffect(() => {
@@ -37,40 +41,59 @@ export default function Home() {
     updateOperation,
     updateProgress, 
     completeOperation, 
-    failOperation 
+    failOperation,
+    clearOperations
   } = useAITransparency();
+
+  // Function to toggle dev mode
+  const toggleDevMode = () => {
+    setIsDevMode(!isDevMode);
+  };
+
+  // Function to clear operations
+  const handleClearOperations = () => {
+    // Call the clearOperations function from the AITransparencyContext
+    clearOperations();
+  };
 
   // Fetch keywords from API based on topic
   const fetchKeywords = async (topicValue: string) => {
     if (!topicValue.trim()) return;
     
-    setIsLoadingKeywords(true);
+    // Reset state
+    setTopic(topicValue);
     setSuggestedKeywords([]);
+    setUsedKeywords([]);
+    setIsLoadingKeywords(true);
+    setContent('');
     
     // Create a new operation in the transparency panel
     const operationId = addOperation({
       type: 'keyword-generation',
       status: 'in-progress',
-      message: `Generating keywords for topic: "${topicValue}"`,
-      detail: 'Requesting keyword suggestions from AI...',
+      message: 'Generating keyword suggestions',
+      detail: `Searching related keywords for "${topicValue}"...`,
       progress: 10
     });
     
     try {
-      // Initial AI keywords request
       updateProgress(operationId, 30);
-      updateOperation(operationId, { 
-        detail: 'Retrieving keyword suggestions from OpenAI...' 
-      });
       
-      const aiResponse = await apiFetch('/api/keywords/ai', {
+      // Call the API to get keywords
+      const response = await fetch('/api/keywords', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ topic: topicValue }),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          topic: topicValue,
+          count: 10,
+          threadId // Include thread ID if available
+        }),
       });
 
-      if (!aiResponse.ok) {
-        throw new Error('Failed to fetch AI keywords');
+      if (!response.ok) {
+        throw new Error('Failed to fetch keywords');
       }
 
       updateProgress(operationId, 50);
@@ -78,7 +101,7 @@ export default function Home() {
         detail: 'AI keywords received. Enriching with metrics data...' 
       });
       
-      const aiData = await aiResponse.json();
+      const aiData = await response.json();
       
       // Add placeholders for metrics
       const keywordsWithLoadingMetrics = aiData.keywords.map((keyword: any) => ({
@@ -93,7 +116,6 @@ export default function Home() {
 
       // Set initial keywords
       setSuggestedKeywords(keywordsWithLoadingMetrics);
-      setTopic(topicValue);
       
       updateProgress(operationId, 70);
       updateOperation(operationId, { 
@@ -197,7 +219,8 @@ export default function Home() {
         topic,
         keywords: allKeywords,
         existingContent: content,
-        isUpdate: content.length > 0
+        isUpdate: content.length > 0,
+        threadId
       };
 
       updateProgress(operationId, 30);
@@ -240,41 +263,36 @@ export default function Home() {
     }
   };
 
-  // Analyze content to extract used keywords
+  // Analyze content for keyword usage and SEO
   const analyzeContent = async (contentText: string, parentOperationId?: string) => {
-    if (!contentText.trim()) return;
+    const selectedKeywords = suggestedKeywords.filter(k => k.selected).map(k => k.keyword);
+    const usedKeywordsList = usedKeywords.map(k => k.keyword);
+    const allKeywords = [...selectedKeywords, ...usedKeywordsList];
     
-    setIsAnalyzingContent(true);
-    
-    // Create a new operation or use a child operation format if part of a parent operation
-    const operationId = parentOperationId 
-      ? addOperation({
-          type: 'keyword-analysis',
-          status: 'in-progress',
-          message: 'Analyzing generated content',
-          detail: 'Extracting keyword opportunities from content...',
-          progress: 10
-        })
-      : addOperation({
-          type: 'keyword-analysis',
-          status: 'in-progress',
-          message: 'Analyzing content for keywords',
-          detail: 'Processing content text...',
-          progress: 10
-        });
+    // Create a new operation or reuse the parent
+    const operationId = parentOperationId || addOperation({
+      type: 'keyword-analysis',
+      status: 'in-progress',
+      message: 'Analyzing content for SEO',
+      detail: `Checking usage of ${allKeywords.length} keywords...`,
+      progress: 10
+    });
     
     try {
+      // Update progress
       updateProgress(operationId, 30);
-      updateOperation(operationId, {
-        detail: 'Sending content to AI for keyword extraction...'
-      });
       
-      console.log(`Analyzing content for keywords: ${contentText.substring(0, 100)}...`);
-      
-      const response = await apiFetch('/api/keywords/extract', {
+      // Call the API
+      const response = await fetch('/api/keywords/extract', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: contentText, topic }),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          content: contentText,
+          topic: topic,
+          threadId // Include the thread ID if available
+        }),
       });
 
       if (!response.ok) {
@@ -625,43 +643,41 @@ export default function Home() {
         {isSidePanelVisible ? <FiChevronRight /> : <FiChevronLeft />}
       </button>
       
-      {/* AI Panel - Side Panel */}
+      {/* Side panel */}
       <div 
         className={`fixed top-0 right-0 h-full w-80 bg-white border-l border-gray-200 shadow-lg z-40 transition-transform duration-300 transform ${isSidePanelVisible ? 'translate-x-0' : 'translate-x-full'} flex flex-col`}
       >
         <div className="p-4 sticky top-0 bg-white border-b border-gray-200 z-10">
           <h2 className="text-xl font-semibold flex items-center">
             <FiInfo className="mr-2 text-blue-500" /> 
-            AI Panel
+            AI Assistant
           </h2>
-          <p className="text-sm text-gray-600 mt-1">See what the AI is doing behind the scenes</p>
+          <p className="text-sm text-gray-600 mt-1">Ask questions or request SEO assistance</p>
         </div>
         
-        {/* Middle scrollable content */}
-        <div className="p-4 flex-1 overflow-y-auto">
-          <AIPanel 
-            operations={operations} 
+        {/* Middle scrollable content - ChatAssistant */}
+        <div className="p-4 flex-1 overflow-hidden">
+          <ChatAssistant 
             isExpanded={isTransparencyPanelExpanded}
-            onToggleExpand={() => setIsTransparencyPanelExpanded(!isTransparencyPanelExpanded)}
           />
         </div>
           
         {/* Developer Tools - Fixed to bottom */}
         <div className="p-4 border-t border-gray-200 bg-white sticky bottom-0">
-          <h3 className="text-sm font-semibold text-gray-700 mb-2">Developer Tools</h3>
-          <div className="flex flex-col gap-2">
-            <Link 
-              href="/test-tools" 
-              className="text-xs text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-3 py-1.5 rounded-md border border-blue-200 transition-colors flex items-center justify-center"
+          <h3 className="text-sm font-medium mb-2">Developer Tools</h3>
+          <div className="space-y-2">
+            <button 
+              onClick={handleClearOperations}
+              className="w-full text-xs py-1 px-2 bg-gray-100 hover:bg-gray-200 rounded text-left"
             >
-              SEO Assistant Tools
-            </Link>
-            <Link 
-              href="/test-tools/diagnostic" 
-              className="text-xs text-green-600 hover:text-green-800 hover:bg-green-50 px-3 py-1.5 rounded-md border border-green-200 transition-colors flex items-center justify-center"
+              Clear Operations
+            </button>
+            <button 
+              onClick={toggleDevMode}
+              className={`w-full text-xs py-1 px-2 ${isDevMode ? 'bg-blue-100 hover:bg-blue-200' : 'bg-gray-100 hover:bg-gray-200'} rounded text-left`}
             >
-              Assistant Diagnostic Tool
-            </Link>
+              {isDevMode ? 'Disable Dev Mode' : 'Enable Dev Mode'}
+            </button>
           </div>
         </div>
       </div>

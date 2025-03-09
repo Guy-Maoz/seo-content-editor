@@ -40,7 +40,7 @@ const TOOLS = [
 
 export async function POST(request: Request) {
   try {
-    const { topic, keywords } = await request.json();
+    const { topic, keywords, threadId } = await request.json();
 
     if (!topic || !keywords || !Array.isArray(keywords) || keywords.length === 0) {
       return NextResponse.json(
@@ -51,8 +51,25 @@ export async function POST(request: Request) {
 
     const keywordsList = keywords.map((k: any) => k.keyword).join(', ');
 
-    // Create a Thread
-    const thread = await openai.beta.threads.create();
+    // Use existing thread if provided, otherwise create a new one
+    let thread;
+    if (threadId) {
+      console.log(`Using existing thread: ${threadId}`);
+      // Validate the thread exists
+      try {
+        const existingMessages = await openai.beta.threads.messages.list(threadId);
+        thread = { id: threadId };
+      } catch (error) {
+        console.error(`Error fetching thread ${threadId}:`, error);
+        // If thread doesn't exist, create a new one
+        thread = await openai.beta.threads.create();
+        console.log(`Created new thread: ${thread.id}`);
+      }
+    } else {
+      // Create a new thread if none provided
+      thread = await openai.beta.threads.create();
+      console.log(`Created new thread: ${thread.id}`);
+    }
 
     // Add a Message to the Thread
     await openai.beta.threads.messages.create(thread.id, {

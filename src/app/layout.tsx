@@ -1,14 +1,14 @@
 import './globals.css';
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
-import { AITransparencyProvider } from '@/contexts/AITransparencyContext';
 import './similarweb-theme.css';
+import ClientProviders from './ClientProviders';
 
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'SEO Content Editor',
-  description: 'AI-powered SEO content editor with keyword research tools',
+  title: 'AI SEO Content Editor',
+  description: 'Generate SEO-optimized content with AI',
 };
 
 export default function RootLayout({
@@ -19,9 +19,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        <AITransparencyProvider>
+        <ClientProviders>
           {children}
-        </AITransparencyProvider>
+        </ClientProviders>
       </body>
     </html>
   );

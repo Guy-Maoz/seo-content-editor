@@ -121,6 +121,32 @@ The application is set up for continuous deployment from GitHub:
 - **Similarweb Integration**: Added keyword metrics (volume, difficulty, CPC) from Similarweb API
 - **Netlify Deployment**: Set up continuous deployment from GitHub
 
+## AI Assistant
+
+The application includes an interactive AI Assistant that helps with SEO tasks. The assistant can:
+
+- Generate keyword suggestions for your content
+- Create SEO-optimized content using your selected keywords
+- Analyze content for SEO improvements
+- Answer questions about SEO best practices
+
+The AI Assistant uses the assistant-ui library to provide a conversational interface where you can ask questions and request actions related to SEO.
+
+### How to Use the AI Assistant
+
+1. Click on the AI panel icon in the top-right corner of the application
+2. Type your question or request in the chat input
+3. The assistant will respond and may offer to perform actions like generating keywords or content
+4. You can continue the conversation to refine your requests or ask follow-up questions
+
+### Technical Implementation
+
+The AI Assistant is built using:
+
+- [assistant-ui](https://github.com/assistant-ui/assistant-ui) - A React library for AI chat interfaces
+- OpenAI's GPT-4o model for natural language understanding and generation
+- Custom tool implementations that connect to the application's existing API endpoints
+
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
