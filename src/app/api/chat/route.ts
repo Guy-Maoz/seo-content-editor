@@ -48,7 +48,22 @@ export async function POST(req: Request) {
       async start(controller) {
         // Helper function to send a message part to the stream
         const sendMessagePart = (type: string, content: any) => {
-          controller.enqueue(new TextEncoder().encode(`${type}:${JSON.stringify(content)}\n`));
+          try {
+            controller.enqueue(new TextEncoder().encode(`${type}:${JSON.stringify(content)}\n`));
+          } catch (error) {
+            console.error('Error sending message part:', error);
+            // Don't throw again, just log the error
+          }
+        };
+        
+        // Safer function to send a message part that won't fail if controller is closed
+        const safeSendMessagePart = (type: string, content: any) => {
+          try {
+            sendMessagePart(type, content);
+          } catch (error) {
+            console.error(`Failed to send ${type} message:`, error);
+            // Just log, don't propagate error
+          }
         };
 
         try {
@@ -90,202 +105,207 @@ export async function POST(req: Request) {
                 
                 // Process each tool call
                 for (const toolCall of toolCalls) {
-                  // Send tool call info to client
-                  sendMessagePart('t', {
-                    id: toolCall.id,
-                    name: toolCall.function.name,
-                    args: JSON.parse(toolCall.function.arguments)
-                  });
-                  
                   try {
-                    const args = JSON.parse(toolCall.function.arguments);
-                    
-                    if (toolCall.function.name === 'get_keyword_metrics') {
-                      // Set base URL depending on environment
-                      const baseUrl = process.env.NODE_ENV === 'production' 
-                        ? process.env.NEXT_PUBLIC_API_BASE_URL || 'https://similarweb-content-seo.netlify.app'  
-                        : `http://localhost:${process.env.PORT || 3000}`;
+                    if (toolCall.type === 'function') {
+                      // Parse the function arguments
+                      const args = JSON.parse(toolCall.function.arguments || '{}');
+                      let output: any = null;
                       
-                      // Call our keyword metrics API
-                      const response = await fetch(`${baseUrl}/api/tools/keyword-metrics`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ keyword: args.keyword })
-                      });
-                      
-                      let output;
-                      if (response.ok) {
-                        output = await response.json();
-                      } else {
-                        // If API fails, generate fallback data
-                        output = { 
-                          keyword: args.keyword,
-                          volume: 1000, 
-                          difficulty: 50,
-                          cpc: 0.5,
-                          isFallback: true
-                        };
+                      // Send the tool call so the client knows we're processing it
+                      try {
+                        safeSendMessagePart('t', {
+                          id: toolCall.id,
+                          type: toolCall.type,
+                          function: toolCall.function
+                        });
+                      } catch (sendError) {
+                        console.error(`Error sending tool call notification for ${toolCall.function.name}:`, sendError);
+                        // Continue despite error in sending
                       }
                       
-                      toolOutputs.push({
-                        tool_call_id: toolCall.id,
-                        output: JSON.stringify(output)
-                      });
-                      
-                      // Send tool result to client
-                      sendMessagePart('r', {
-                        toolCallId: toolCall.id,
-                        result: output
-                      });
-                    }
-                    else if (toolCall.function.name === 'generate_keywords') {
-                      // Call our keyword generation API
-                      const baseUrl = process.env.NODE_ENV === 'production' 
-                        ? process.env.NEXT_PUBLIC_API_BASE_URL || 'https://similarweb-content-seo.netlify.app'  
-                        : `http://localhost:${process.env.PORT || 3000}`;
-                      
-                      const response = await fetch(`${baseUrl}/api/keywords`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ 
-                          topic: args.topic,
-                          count: args.count || 10 
-                        })
-                      });
-                      
-                      let output;
-                      if (response.ok) {
-                        output = await response.json();
-                      } else {
-                        // If API fails, return error
-                        output = { 
-                          error: `Failed to generate keywords for topic: ${args.topic}`,
-                          keywords: []
-                        };
+                      if (toolCall.function.name === 'get_keyword_metrics') {
+                        try {
+                          // Call our keyword metrics API
+                          const baseUrl = process.env.NODE_ENV === 'production' 
+                            ? process.env.NEXT_PUBLIC_API_BASE_URL || 'https://similarweb-content-seo.netlify.app'  
+                            : `http://localhost:${process.env.PORT || 3000}`;
+                          
+                          const response = await fetch(`${baseUrl}/api/keyword-metrics`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ keyword: args.keyword })
+                          });
+                          
+                          if (response.ok) {
+                            output = await response.json();
+                          } else {
+                            // If API fails, create fallback data
+                            console.error(`Keyword metrics API error: ${response.status} ${response.statusText}`);
+                            output = { 
+                              keyword: args.keyword || 'unknown',
+                              volume: 1000, 
+                              difficulty: 50,
+                              cpc: 0.5,
+                              isFallback: true
+                            };
+                          }
+                        } catch (toolError) {
+                          console.error('Error in get_keyword_metrics tool:', toolError);
+                          
+                          // Create fallback response
+                          output = { 
+                            keyword: args.keyword || 'unknown',
+                            volume: 1000, 
+                            difficulty: 50,
+                            cpc: 0.5,
+                            isFallback: true,
+                            error: toolError instanceof Error ? toolError.message : 'Unknown error'
+                          };
+                        }
+                        
+                        // Add to tool outputs regardless of success/failure
+                        toolOutputs.push({
+                          tool_call_id: toolCall.id,
+                          output: JSON.stringify(output)
+                        });
+                        
+                        // Try to send the result, with special error handling
+                        try {
+                          safeSendMessagePart('r', {
+                            toolCallId: toolCall.id,
+                            result: output
+                          });
+                        } catch (sendError) {
+                          console.error('Error sending tool result:', sendError);
+                          // Just log, don't throw
+                        }
+                      }
+                      else if (toolCall.function.name === 'generate_keywords') {
+                        // Call our keyword generation API
+                        const baseUrl = process.env.NODE_ENV === 'production' 
+                          ? process.env.NEXT_PUBLIC_API_BASE_URL || 'https://similarweb-content-seo.netlify.app'  
+                          : `http://localhost:${process.env.PORT || 3000}`;
+                        
+                        const response = await fetch(`${baseUrl}/api/keywords`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ 
+                            topic: args.topic,
+                            count: args.count || 10 
+                          })
+                        });
+                        
+                        if (response.ok) {
+                          output = await response.json();
+                        } else {
+                          // If API fails, return error
+                          output = { 
+                            error: `Failed to generate keywords for topic: ${args.topic}`,
+                            keywords: []
+                          };
+                        }
+                      }
+                      else if (toolCall.function.name === 'generate_content') {
+                        // Call our content generation API
+                        const baseUrl = process.env.NODE_ENV === 'production' 
+                          ? process.env.NEXT_PUBLIC_API_BASE_URL || 'https://similarweb-content-seo.netlify.app'  
+                          : `http://localhost:${process.env.PORT || 3000}`;
+                        
+                        const response = await fetch(`${baseUrl}/api/content/generate`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ 
+                            keywords: args.keywords,
+                            contentType: args.contentType || 'blog post',
+                            tone: args.tone || 'informative'
+                          })
+                        });
+                        
+                        if (response.ok) {
+                          output = await response.json();
+                        } else {
+                          // If API fails, return error
+                          output = { 
+                            error: `Failed to generate content`,
+                            content: ''
+                          };
+                        }
+                      }
+                      else if (toolCall.function.name === 'analyze_seo') {
+                        // Call our SEO analysis API
+                        const baseUrl = process.env.NODE_ENV === 'production' 
+                          ? process.env.NEXT_PUBLIC_API_BASE_URL || 'https://similarweb-content-seo.netlify.app'  
+                          : `http://localhost:${process.env.PORT || 3000}`;
+                        
+                        const response = await fetch(`${baseUrl}/api/keywords/extract`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ 
+                            content: args.content,
+                            topic: 'SEO analysis',
+                            keywords: args.keywords || []
+                          })
+                        });
+                        
+                        if (response.ok) {
+                          output = await response.json();
+                        } else {
+                          // If API fails, return error
+                          output = { 
+                            error: `Failed to analyze content`,
+                            analysis: {},
+                            suggestions: []
+                          };
+                        }
+                      }
+                      else {
+                        // Unknown function
+                        output = { error: `Unknown function: ${toolCall.function.name}` };
                       }
                       
-                      toolOutputs.push({
-                        tool_call_id: toolCall.id,
-                        output: JSON.stringify(output)
-                      });
-                      
-                      // Send tool result to client
-                      sendMessagePart('r', {
-                        toolCallId: toolCall.id,
-                        result: output
-                      });
-                    }
-                    else if (toolCall.function.name === 'generate_content') {
-                      // Call our content generation API
-                      const baseUrl = process.env.NODE_ENV === 'production' 
-                        ? process.env.NEXT_PUBLIC_API_BASE_URL || 'https://similarweb-content-seo.netlify.app'  
-                        : `http://localhost:${process.env.PORT || 3000}`;
-                      
-                      const response = await fetch(`${baseUrl}/api/content/generate`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ 
-                          keywords: args.keywords,
-                          contentType: args.contentType || 'blog post',
-                          tone: args.tone || 'informative'
-                        })
-                      });
-                      
-                      let output;
-                      if (response.ok) {
-                        output = await response.json();
-                      } else {
-                        // If API fails, return error
-                        output = { 
-                          error: `Failed to generate content`,
-                          content: ''
-                        };
+                      // Send tool result to client if we haven't already
+                      if (output) {
+                        safeSendMessagePart('r', {
+                          toolCallId: toolCall.id,
+                          result: output
+                        });
                       }
+                    } catch (toolProcessingError) {
+                      console.error(`Error processing tool call ${toolCall.function?.name || 'unknown'}:`, toolProcessingError);
                       
-                      toolOutputs.push({
-                        tool_call_id: toolCall.id,
-                        output: JSON.stringify(output)
-                      });
-                      
-                      // Send tool result to client
-                      sendMessagePart('r', {
-                        toolCallId: toolCall.id,
-                        result: output
-                      });
-                    }
-                    else if (toolCall.function.name === 'analyze_seo') {
-                      // Call our SEO analysis API
-                      const baseUrl = process.env.NODE_ENV === 'production' 
-                        ? process.env.NEXT_PUBLIC_API_BASE_URL || 'https://similarweb-content-seo.netlify.app'  
-                        : `http://localhost:${process.env.PORT || 3000}`;
-                      
-                      const response = await fetch(`${baseUrl}/api/keywords/extract`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ 
-                          content: args.content,
-                          topic: 'SEO analysis',
-                          keywords: args.keywords || []
-                        })
-                      });
-                      
-                      let output;
-                      if (response.ok) {
-                        output = await response.json();
-                      } else {
-                        // If API fails, return error
-                        output = { 
-                          error: `Failed to analyze content`,
-                          analysis: {},
-                          suggestions: []
-                        };
+                      // Add error information to tool outputs
+                      try {
+                        toolOutputs.push({
+                          tool_call_id: toolCall.id,
+                          output: JSON.stringify({ 
+                            error: toolProcessingError instanceof Error 
+                              ? toolProcessingError.message 
+                              : 'Unknown error processing tool call'
+                          })
+                        });
+                        
+                        // Try to send the error result
+                        safeSendMessagePart('r', {
+                          toolCallId: toolCall.id,
+                          result: { 
+                            error: toolProcessingError instanceof Error 
+                              ? toolProcessingError.message 
+                              : 'Unknown error processing tool call'
+                          }
+                        });
+                      } catch (outputError) {
+                        console.error('Error sending tool error result:', outputError);
+                        // Just log, don't throw
                       }
-                      
-                      toolOutputs.push({
-                        tool_call_id: toolCall.id,
-                        output: JSON.stringify(output)
-                      });
-                      
-                      // Send tool result to client
-                      sendMessagePart('r', {
-                        toolCallId: toolCall.id,
-                        result: output
-                      });
                     }
-                    else {
-                      // Unknown function
-                      toolOutputs.push({
-                        tool_call_id: toolCall.id,
-                        output: JSON.stringify({ error: `Unknown function: ${toolCall.function.name}` })
-                      });
-                      
-                      // Send tool result to client
-                      sendMessagePart('r', {
-                        toolCallId: toolCall.id,
-                        result: { error: `Unknown function: ${toolCall.function.name}` }
-                      });
-                    }
-                  } catch (error) {
-                    console.error(`Error processing tool call ${toolCall.function.name}:`, error);
-                    // Return error information
-                    toolOutputs.push({
-                      tool_call_id: toolCall.id,
-                      output: JSON.stringify({ error: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` })
-                    });
-                    
-                    // Send tool result to client
-                    sendMessagePart('r', {
-                      toolCallId: toolCall.id,
-                      result: { error: `Error: ${error instanceof Error ? error.message : 'Unknown error'}` }
+                  }
+                  
+                  // Submit all tool outputs back to the assistant
+                  if (toolOutputs.length > 0) {
+                    await openai.beta.threads.runs.submitToolOutputs(threadId, run.id, {
+                      tool_outputs: toolOutputs
                     });
                   }
-                }
-                
-                // Submit all tool outputs back to the assistant
-                if (toolOutputs.length > 0) {
-                  await openai.beta.threads.runs.submitToolOutputs(threadId, run.id, {
-                    tool_outputs: toolOutputs
-                  });
                 }
               }
             }
@@ -332,10 +352,18 @@ export async function POST(req: Request) {
         } catch (error) {
           console.error('Error in chat stream:', error);
           // Send error message
-          sendMessagePart('3', `Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
-          sendMessagePart('d', { finishReason: 'error', usage: { promptTokens: 0, completionTokens: 0 } });
-        } finally {
-          controller.close();
+          try {
+            sendMessagePart('3', `Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            sendMessagePart('d', { finishReason: 'error', usage: { promptTokens: 0, completionTokens: 0 } });
+          } catch (sendError) {
+            console.error('Error sending error message:', sendError);
+          } finally {
+            try {
+              controller.close();
+            } catch (closeError) {
+              console.error('Error closing controller:', closeError);
+            }
+          }
         }
       }
     });
