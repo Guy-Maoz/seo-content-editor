@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { getApiEndpoint } from '@/utils/api';
 
 export default function AssistantDiagnosticPage() {
   const [assistantId, setAssistantId] = useState('asst_JXBmxj6nBTPncEpjwJmtzLTr');
@@ -15,8 +16,9 @@ export default function AssistantDiagnosticPage() {
     setResults(null);
     
     try {
-      // Build the query URL with parameters - using Netlify function instead of API route
-      const url = `/.netlify/functions/tools-diagnostic?assistant_id=${encodeURIComponent(assistantId)}&keyword=${encodeURIComponent(testKeyword)}`;
+      // Build the query URL with parameters
+      const baseUrl = getApiEndpoint('/api/tools/diagnostic');
+      const url = `${baseUrl}?assistant_id=${encodeURIComponent(assistantId)}&keyword=${encodeURIComponent(testKeyword)}`;
       
       const response = await fetch(url);
       

@@ -9,6 +9,7 @@ import { Keyword } from '@/types/keyword';
 import { FiInfo } from 'react-icons/fi';
 import Link from 'next/link';
 import { useAITransparency } from '@/contexts/AITransparencyContext';
+import { apiFetch } from '@/utils/api';
 
 export default function Home() {
   const [topic, setTopic] = useState('');
@@ -49,13 +50,13 @@ export default function Home() {
     });
     
     try {
-      // Initial AI keywords request - now using Netlify function
+      // Initial AI keywords request
       updateProgress(operationId, 30);
       updateOperation(operationId, { 
         detail: 'Retrieving keyword suggestions from OpenAI...' 
       });
       
-      const aiResponse = await fetch('/.netlify/functions/keywords-ai', {
+      const aiResponse = await apiFetch('/api/keywords/ai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ topic: topicValue }),
@@ -96,7 +97,7 @@ export default function Home() {
       for (let i = 0; i < keywordsWithLoadingMetrics.length; i++) {
         const keyword = keywordsWithLoadingMetrics[i];
         try {
-          const response = await fetch('/.netlify/functions/keywords-single', {
+          const response = await apiFetch('/api/keywords/single', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ keyword: keyword.keyword }),
@@ -197,7 +198,7 @@ export default function Home() {
         detail: 'Processing your request with OpenAI...'
       });
       
-      const response = await fetch('/.netlify/functions/content-generate', {
+      const response = await apiFetch('/api/content/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestBody),
@@ -258,7 +259,7 @@ export default function Home() {
     try {
       updateProgress(operationId, 30);
       
-      const response = await fetch('/.netlify/functions/keywords-extract', {
+      const response = await apiFetch('/api/keywords/extract', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content: contentText, topic }),
@@ -327,7 +328,7 @@ export default function Home() {
       
       updateProgress(operationId, 40);
       
-      const response = await fetch('/.netlify/functions/keywords-more', {
+      const response = await apiFetch('/api/keywords/more', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -367,7 +368,7 @@ export default function Home() {
         for (let i = 0; i < newKeywords.length; i++) {
           const keyword = newKeywords[i];
           try {
-            const response = await fetch('/.netlify/functions/keywords-single', {
+            const response = await apiFetch('/api/keywords/single', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ keyword: keyword.keyword }),

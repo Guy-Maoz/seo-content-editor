@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { apiFetch } from '@/utils/api';
 
 export default function TestToolsPage() {
   const [query, setQuery] = useState('');
@@ -17,7 +18,7 @@ export default function TestToolsPage() {
     setResponse('');
     
     try {
-      const res = await fetch('/.netlify/functions/tools-handler', {
+      const res = await apiFetch('/api/tools/handler', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
