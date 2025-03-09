@@ -512,6 +512,76 @@ export default function Home() {
   // Handle content changes
   const handleContentChange = (newContent: string) => {
     setContent(newContent);
+    
+    // Implement dynamic keyword syncing
+    // Check if any selected keywords are missing from the content and unselect them
+    if (suggestedKeywords.length > 0) {
+      // Create a lowercase version of the content for case-insensitive matching
+      const lowercaseContent = newContent.toLowerCase();
+      
+      // Check each keyword to see if it's in the content
+      suggestedKeywords.forEach(keyword => {
+        if (keyword.selected) {
+          // Check if the keyword exists in the content (with word boundaries)
+          const keywordPattern = new RegExp(`\\b${keyword.keyword.toLowerCase()}\\b`, 'i');
+          const isInContent = keywordPattern.test(lowercaseContent);
+          
+          // If keyword is not in the content anymore, unselect it
+          if (!isInContent) {
+            // Add a note to the transparency panel
+            addOperation({
+              type: 'info',
+              status: 'completed',
+              message: `Keyword "${keyword.keyword}" was removed from content`,
+              detail: 'Automatically unselected from keywords list'
+            });
+            
+            // Unselect the keyword
+            setSuggestedKeywords(prevKeywords => {
+              return prevKeywords.map(k => {
+                if (k.keyword === keyword.keyword) {
+                  return { ...k, selected: false };
+                }
+                return k;
+              });
+            });
+          }
+        }
+      });
+    }
+    
+    // Check used keywords to see if any need to be moved back to suggested
+    if (usedKeywords.length > 0) {
+      const lowercaseContent = newContent.toLowerCase();
+      
+      // Find used keywords that are no longer in the content
+      const keywordsToMove = usedKeywords.filter(keyword => {
+        const keywordPattern = new RegExp(`\\b${keyword.keyword.toLowerCase()}\\b`, 'i');
+        return !keywordPattern.test(lowercaseContent);
+      });
+      
+      // Move keywords back to suggested if they were removed from content
+      if (keywordsToMove.length > 0) {
+        // Add a note to the transparency panel
+        addOperation({
+          type: 'info',
+          status: 'completed',
+          message: `${keywordsToMove.length} used keywords removed from content`,
+          detail: 'Moved back to suggested keywords list'
+        });
+        
+        // Move the keywords back to suggested
+        setUsedKeywords(prev => prev.filter(k => 
+          !keywordsToMove.some(toMove => toMove.keyword === k.keyword)
+        ));
+        
+        // Add them to suggested keywords with selected: false
+        setSuggestedKeywords(prev => [
+          ...prev,
+          ...keywordsToMove.map(k => ({ ...k, selected: false }))
+        ]);
+      }
+    }
   };
 
   return (
