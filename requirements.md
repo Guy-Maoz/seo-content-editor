@@ -54,6 +54,24 @@ The SEO Content Editor is a web application designed to help content creators an
   - Test keyword metrics retrieval in isolation
   - Provide detailed debug information for developers
 
+## User Flow
+
+1. **Seed Input**: The user enters a seed topic.
+
+2. **Keyword Suggestion**: The AI generates a list of high-search-volume related keywords.
+
+3. **Keyword Selection**: The user can select/deselect keywords using checkboxes.
+
+4. **Content Generation**:
+   - When the user clicks "Generate", the AI creates a piece of text using the selected keywords.
+   - The text is displayed in an editor, with the used keywords highlighted.
+
+5. **Dynamic Keyword Syncing**:
+   - If the user deletes a keyword from the text, it gets automatically unchecked in the keyword list.
+
+6. **Regeneration**:
+   - The user can rerun the AI generation, using the current selected keywords to refine the text further.
+
 ## Technical Requirements
 
 ### 1. Architecture
