@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect } from 'react';
 import TopicInput from '@/components/topic-input';
 import KeywordBank from '@/components/keyword-bank';
 import ContentEditor from '@/components/content-editor';
-import AITransparencyPanel from '@/components/AITransparencyPanel';
+import AIPanel from '@/components/AIPanel';
 import { Keyword } from '@/types/keyword';
 import { FiInfo, FiChevronLeft, FiChevronRight } from 'react-icons/fi';
 import Link from 'next/link';
@@ -613,55 +613,54 @@ export default function Home() {
             </div>
           </div>
         </div>
-
-        <div className="mt-6 text-center">
-          <div className="p-4 bg-gray-100 rounded-lg max-w-3xl mx-auto">
-            <h3 className="text-lg font-semibold text-gray-800 mb-2">Developer Tools</h3>
-            <div className="flex flex-col sm:flex-row justify-center gap-4">
-              <Link 
-                href="/test-tools" 
-                className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-4 py-2 rounded-md border border-blue-200 transition-colors"
-              >
-                SEO Assistant Tools
-              </Link>
-              <Link 
-                href="/test-tools/diagnostic" 
-                className="text-green-600 hover:text-green-800 hover:bg-green-50 px-4 py-2 rounded-md border border-green-200 transition-colors"
-              >
-                Assistant Diagnostic Tool
-              </Link>
-            </div>
-          </div>
-        </div>
       </div>
 
       {/* Toggle button for side panel */}
       <button 
         onClick={() => setIsSidePanelVisible(!isSidePanelVisible)}
         className="fixed right-0 top-1/2 transform -translate-y-1/2 bg-blue-50 border-blue-200 border-l border-t border-b rounded-l-md p-2 z-50 shadow-md"
-        aria-label={isSidePanelVisible ? "Hide AI Transparency Panel" : "Show AI Transparency Panel"}
-        title={isSidePanelVisible ? "Hide AI Transparency Panel" : "Show AI Transparency Panel"}
+        aria-label={isSidePanelVisible ? "Hide AI Panel" : "Show AI Panel"}
+        title={isSidePanelVisible ? "Hide AI Panel" : "Show AI Panel"}
       >
         {isSidePanelVisible ? <FiChevronRight /> : <FiChevronLeft />}
       </button>
       
-      {/* AI Transparency Panel - Side Panel */}
+      {/* AI Panel - Side Panel */}
       <div 
         className={`fixed top-0 right-0 h-full w-80 bg-white border-l border-gray-200 shadow-lg z-40 transition-transform duration-300 transform ${isSidePanelVisible ? 'translate-x-0' : 'translate-x-full'} overflow-auto`}
       >
         <div className="p-4 sticky top-0 bg-white border-b border-gray-200 z-10">
           <h2 className="text-xl font-semibold flex items-center">
             <FiInfo className="mr-2 text-blue-500" /> 
-            AI Transparency Panel
+            AI Panel
           </h2>
           <p className="text-sm text-gray-600 mt-1">See what the AI is doing behind the scenes</p>
         </div>
         <div className="p-4">
-          <AITransparencyPanel 
+          <AIPanel 
             operations={operations} 
             isExpanded={isTransparencyPanelExpanded}
             onToggleExpand={() => setIsTransparencyPanelExpanded(!isTransparencyPanelExpanded)}
           />
+          
+          {/* Developer Tools - Moved from main content */}
+          <div className="mt-4 border-t border-gray-200 pt-4">
+            <h3 className="text-sm font-semibold text-gray-700 mb-2">Developer Tools</h3>
+            <div className="flex flex-col gap-2">
+              <Link 
+                href="/test-tools" 
+                className="text-xs text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-3 py-1.5 rounded-md border border-blue-200 transition-colors flex items-center justify-center"
+              >
+                SEO Assistant Tools
+              </Link>
+              <Link 
+                href="/test-tools/diagnostic" 
+                className="text-xs text-green-600 hover:text-green-800 hover:bg-green-50 px-3 py-1.5 rounded-md border border-green-200 transition-colors flex items-center justify-center"
+              >
+                Assistant Diagnostic Tool
+              </Link>
+            </div>
+          </div>
         </div>
       </div>
     </main>

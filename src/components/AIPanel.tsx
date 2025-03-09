@@ -13,17 +13,17 @@ type AIOperation = {
   progress?: number; // 0-100
 };
 
-type AITransparencyPanelProps = {
+type AIPanelProps = {
   operations: AIOperation[];
   isExpanded?: boolean;
   onToggleExpand?: () => void;
 };
 
-const AITransparencyPanel = ({ 
+const AIPanel = ({ 
   operations = [], 
   isExpanded = false, 
   onToggleExpand = () => {} 
-}: AITransparencyPanelProps) => {
+}: AIPanelProps) => {
   const [expanded, setExpanded] = useState(isExpanded);
   const [isClient, setIsClient] = useState(false);
 
@@ -80,7 +80,7 @@ const AITransparencyPanel = ({
         className="mb-3 pb-2 border-b border-gray-200 flex justify-between items-center cursor-pointer"
         onClick={handleToggle}
       >
-        <span className="text-sm font-medium text-blue-600">Activity Log</span>
+        <span className="text-sm font-medium text-blue-600">AI Activities</span>
         <span className="text-xs text-gray-500">
           {expanded ? 'Hide Details' : 'Show Details'}
         </span>
@@ -142,4 +142,4 @@ const AITransparencyPanel = ({
   );
 };
 
-export default AITransparencyPanel; 
+export default AIPanel; 
