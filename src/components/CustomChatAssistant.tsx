@@ -116,31 +116,78 @@ Just type your question or select a task to get started!`,
         } else if (data.type === 't') {
           // Tool call - log it
           try {
-            completeOperation(operationId, `Using tool: ${data.content.function.name}`);
-            // Check for parse error flag added by StreamProxy
-            if (!data.parseError) {
+            if (data.parseError) {
+              // Handle unparsed tool call data
+              console.log('Tool call received but could not be parsed');
               addOperation({
                 type: 'info',
                 status: 'in-progress',
-                message: `Using ${data.content.function.name}`,
-                detail: `Looking up data for ${JSON.parse(data.content.function.arguments).keyword}`,
+                message: 'Processing your request',
+                detail: 'Using AI tools',
                 progress: 40,
               });
+            } else if (data.content && data.content.function) {
+              completeOperation(operationId, `Using tool: ${data.content.function.name}`);
+              try {
+                const args = JSON.parse(data.content.function.arguments);
+                addOperation({
+                  type: 'info',
+                  status: 'in-progress',
+                  message: `Using ${data.content.function.name}`,
+                  detail: args.keyword ? `Looking up data for "${args.keyword}"` : 'Processing information',
+                  progress: 40,
+                });
+              } catch (argError) {
+                // If we can't parse the arguments
+                addOperation({
+                  type: 'info',
+                  status: 'in-progress',
+                  message: `Using ${data.content.function.name}`,
+                  detail: 'Processing data',
+                  progress: 40,
+                });
+              }
             }
           } catch (e) {
             console.warn('Error handling tool call:', e);
+            // Add a generic operation if all else fails
+            addOperation({
+              type: 'info',
+              status: 'in-progress',
+              message: 'Processing with AI tools',
+              detail: 'Working on your request',
+              progress: 40,
+            });
           }
         } else if (data.type === 'r') {
           // Tool result - log it
           try {
-            const result = data.content.result;
-            if (result && result.keyword) {
+            if (data.parseError) {
+              // Handle unparsed tool result
+              console.log('Tool result received but could not be parsed');
               addOperation({
                 type: 'info',
                 status: 'completed',
-                message: `Found keyword data`,
-                detail: `${result.keyword}: volume=${result.volume}, difficulty=${result.difficulty}, CPC=$${result.cpc}`,
+                message: 'Data processed',
+                detail: 'Retrieved information successfully',
               });
+            } else if (data.content && data.content.result) {
+              const result = data.content.result;
+              if (result.keyword) {
+                addOperation({
+                  type: 'info',
+                  status: 'completed',
+                  message: `Found keyword data`,
+                  detail: `${result.keyword}: volume=${result.volume || 'N/A'}, difficulty=${result.difficulty || 'N/A'}, CPC=$${result.cpc || 'N/A'}`,
+                });
+              } else {
+                addOperation({
+                  type: 'info',
+                  status: 'completed',
+                  message: 'Data processed',
+                  detail: 'Retrieved information successfully',
+                });
+              }
             }
           } catch (e) {
             console.warn('Error handling tool result:', e);
@@ -148,16 +195,22 @@ Just type your question or select a task to get started!`,
         } else if (data.type === 'd') {
           // Completion or error
           try {
-            // Check for parse error flag added by StreamProxy
-            if (!data.parseError) {
+            if (data.parseError) {
+              // Handle unparsed completion data
+              console.log('Completion data received but could not be parsed');
+              completeOperation(operationId, 'Response completed');
+            } else if (data.content) {
               completeOperation(operationId, 
                 data.content.finishReason === 'stop' 
                   ? 'Response completed successfully' 
                   : `Response ended: ${data.content.finishReason}`
               );
+            } else {
+              completeOperation(operationId, 'Response completed');
             }
           } catch (e) {
             console.warn('Error handling completion data:', e);
+            completeOperation(operationId, 'Response completed with errors');
           }
         }
       },

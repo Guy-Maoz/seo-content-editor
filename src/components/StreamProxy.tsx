@@ -142,21 +142,29 @@ export default function useStreamProxy(apiEndpoint: string) {
   
   // Helper function to process each part of the stream correctly
   const processStreamPart = (part: string, onData: (data: any) => void) => {
-    const [type, content] = part.split(':', 2);
+    // Format is always "type:content", but we need to be careful about the split
+    // since the content may contain colons (especially in JSON)
+    const colonIndex = part.indexOf(':');
+    if (colonIndex === -1) return; // Skip malformed parts
     
-    if (!type || content === undefined) return; // Skip malformed parts
+    const type = part.substring(0, colonIndex);
+    const content = part.substring(colonIndex + 1);
+    
+    if (!type || !content) return; // Skip empty parts
     
     // Different handling based on chunk type
     if (type === '0') {
-      // Type 0 is raw text, not JSON
+      // Type 0 is plain text, not JSON
       onData({ type, content });
     } else {
       // Other types (f, t, r, d) contain JSON
       try {
-        onData({ type, content: JSON.parse(content) });
+        // Some chunks might have escaped JSON, so we need to be careful
+        const parsedContent = JSON.parse(content);
+        onData({ type, content: parsedContent });
       } catch (e) {
         console.warn(`JSON parse error for type ${type}:`, e);
-        // For non-text chunks, still try to deliver the content as-is if JSON parsing fails
+        // Still try to deliver the raw content
         onData({ type, content, parseError: true });
       }
     }
