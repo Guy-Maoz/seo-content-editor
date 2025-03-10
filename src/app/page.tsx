@@ -13,6 +13,8 @@ import { useAITransparency } from '@/contexts/AITransparencyContext';
 import { apiFetch } from '@/utils/api';
 import { useThreadContext } from '@/contexts/ThreadContext';
 
+export const maxDuration = 300; // 5 minutes
+
 export default function Home() {
   const [topic, setTopic] = useState('');
   const [suggestedKeywords, setSuggestedKeywords] = useState<Keyword[]>([]);

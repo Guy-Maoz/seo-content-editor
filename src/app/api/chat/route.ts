@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
 
+// Set a longer timeout for this API route
+export const maxDuration = 300; // 5 minutes
+
 // Set a longer timeout for OpenAI API calls
 const API_TIMEOUT = 5 * 60 * 1000; // 5 minutes
 

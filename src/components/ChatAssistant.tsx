@@ -8,6 +8,14 @@ import { FiMessageSquare, FiFeather } from 'react-icons/fi';
 import { useThreadContext } from '@/contexts/ThreadContext';
 import { useAITransparency } from '@/contexts/AITransparencyContext';
 
+// Extend window with maxDuration configuration for Next.js
+if (typeof window !== 'undefined') {
+  // @ts-ignore - Adding this for Next.js config
+  window.__NEXT_DATA__ = window.__NEXT_DATA__ || {};
+  // @ts-ignore - Set a longer duration for API calls
+  window.__NEXT_DATA__.maxDuration = 120; // 120 seconds
+}
+
 interface ChatAssistantProps {
   isExpanded?: boolean;
 }
@@ -17,6 +25,8 @@ const ChatAssistant: React.FC<ChatAssistantProps> = ({ isExpanded = true }) => {
   const [isLoading, setIsLoading] = useState(true);
   const { threadId, isThreadInitialized } = useThreadContext();
   const { addOperation, completeOperation, failOperation } = useAITransparency();
+  const [retryCount, setRetryCount] = useState(0);
+  const [isRetrying, setIsRetrying] = useState(false);
 
   console.log('[ChatAssistant] Initial state:', { 
     threadId: threadId ? threadId.substring(0, 8) + '...' : null, 
@@ -62,6 +72,7 @@ const ChatAssistant: React.FC<ChatAssistantProps> = ({ isExpanded = true }) => {
     body: {
       threadId
     },
+    // Vercel/Next.js streaming uses SSE keepalive by default
     initialMessages: [
       {
         id: 'welcome',
@@ -80,6 +91,12 @@ Just type your question or select a task to get started!`,
       // Log the response for debugging
       console.log('[ChatAssistant] Chat response received', response.status);
       
+      // Reset retry count on successful response
+      if (response.ok && retryCount > 0) {
+        setRetryCount(0);
+        setIsRetrying(false);
+      }
+      
       // Log operation for the response
       if (response.ok) {
         const operationId = addOperation({
@@ -96,12 +113,50 @@ Just type your question or select a task to get started!`,
         }, 2000);
       } else {
         // Log error if response is not OK
-        addOperation({
-          type: 'info',
+        const errorId = addOperation({
+          type: 'info', // Using 'info' since 'error' is not a valid type
           status: 'failed',
           message: 'Error processing request',
-          detail: `HTTP error: ${response.status}`,
+          detail: `HTTP error: ${response.status}. ${
+            retryCount > 0 ? `Retry attempt ${retryCount}/3` : 'Will retry automatically.'
+          }`,
         });
+        
+        // Auto-retry logic for retryable errors
+        if (response.status >= 500 || response.status === 408 || response.status === 429) {
+          if (retryCount < 3 && !isRetrying) {
+            setIsRetrying(true);
+            setTimeout(() => {
+              // Increment retry count and trigger UI update
+              setRetryCount(prev => prev + 1);
+              completeOperation(errorId, `Retrying request (${retryCount + 1}/3)...`);
+              setIsRetrying(false);
+            }, 2000 * (retryCount + 1)); // Exponential backoff
+          }
+        }
+      }
+    },
+    onError: (error) => {
+      console.error('[ChatAssistant] Chat error:', error);
+      
+      // Log error to transparency panel
+      const errorId = addOperation({
+        type: 'info', // Using 'info' since 'error' is not a valid type
+        status: 'failed',
+        message: 'Communication error',
+        detail: error instanceof Error ? error.message : 'Unknown error occurred',
+      });
+      
+      // Auto-retry for network errors
+      if (error.name === 'AbortError' || error.name === 'TypeError' || error.message.includes('network')) {
+        if (retryCount < 3 && !isRetrying) {
+          setIsRetrying(true);
+          setTimeout(() => {
+            setRetryCount(prev => prev + 1);
+            completeOperation(errorId, `Retrying connection (${retryCount + 1}/3)...`);
+            setIsRetrying(false);
+          }, 2000 * (retryCount + 1)); // Exponential backoff
+        }
       }
     }
   });
@@ -124,6 +179,11 @@ Just type your question or select a task to get started!`,
       <div className="mb-4 flex items-center">
         <FiMessageSquare className="text-blue-500 mr-2 text-xl" />
         <h2 className="text-xl font-semibold">SEO Assistant</h2>
+        {isRetrying && (
+          <span className="ml-2 text-xs text-orange-500 animate-pulse">
+            Retrying... ({retryCount}/3)
+          </span>
+        )}
       </div>
       
       <div className="flex-1 overflow-y-auto rounded-md border border-gray-200 bg-white shadow-sm">
