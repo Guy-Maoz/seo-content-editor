@@ -150,7 +150,7 @@ export async function POST(req: Request) {
     
     // Start run
     const run = await openAI.beta.threads.runs.create(threadId, {
-      assistant_id: process.env.OPENAI_ASSISTANT_ID as string,
+      assistant_id: 'asst_JXBmxj6nBTPncEpjwJmtzLTr',
     });
     console.log(`[${requestId}] Starting run processing: ${run.id}`);
     
