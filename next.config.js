@@ -8,8 +8,8 @@ const nextConfig = {
     // Disabling TypeScript checking during builds
     ignoreBuildErrors: true,
   },
-  // Change from 'standalone' to 'export' for static site generation
-  output: 'export',
+  // Changed from 'export' to 'standalone' to support dynamic API routes
+  output: 'standalone',
   // Configure images
   images: {
     unoptimized: true,
