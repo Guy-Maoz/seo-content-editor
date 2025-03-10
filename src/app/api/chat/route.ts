@@ -33,6 +33,9 @@ interface ToolOutput {
   output: string;
 }
 
+// Type for OpenAI Run status
+type RunStatus = 'queued' | 'in_progress' | 'requires_action' | 'completed' | 'failed' | 'cancelled' | 'expired';
+
 // Check for active runs to avoid race conditions
 async function checkForActiveRuns(threadId: string, requestId: string): Promise<void> {
   let attempts = 0;
@@ -160,6 +163,7 @@ export async function POST(req: Request) {
     
     // Create a safe writer wrapper with closure tracking
     let writerClosed = false;
+    let shouldCancel = false;
     const writer = streamController.writable.getWriter();
     
     // Queue of messages to send
@@ -173,8 +177,8 @@ export async function POST(req: Request) {
     
     // Function to safely send messages through the stream
     const sendMessage = async (type: string, content: any) => {
-      if (writerClosed) {
-        console.log(`[${requestId}] Skipping send - writer is already closed`);
+      if (writerClosed || shouldCancel) {
+        console.log(`[${requestId}] Skipping send - writer is ${writerClosed ? 'closed' : 'cancelling'}`);
         return false;
       }
       
@@ -214,29 +218,43 @@ export async function POST(req: Request) {
       }
     };
     
+    // Cancel run function to avoid duplicating code
+    const cancelRun = async () => {
+      if (shouldCancel) return; // Avoid duplicate cancellations
+      
+      shouldCancel = true;
+      console.log(`[${requestId}] Cancelling run ${run.id}`);
+      
+      try {
+        await openAI.beta.threads.runs.cancel(threadId, run.id);
+        console.log(`[${requestId}] Run cancelled successfully`);
+      } catch (cancelError) {
+        console.error(`[${requestId}] Failed to cancel run:`, cancelError);
+      }
+    };
+    
     // Process the run in the background
     (async () => {
       let shouldCancel = false;
       
       // Set up handler for client disconnection
       try {
-        req.signal.addEventListener('abort', () => {
+        req.signal.addEventListener('abort', async () => {
           console.log(`[${requestId}] Client disconnected, aborting run processing`);
+          // Mark flags first to prevent any new operations
+          writerClosed = true;
           shouldCancel = true;
-          writerClosed = true;  // Mark writer as closed on disconnect
           
-          // Cancel the run to prevent wasted resources
-          try {
-            openAI.beta.threads.runs.cancel(threadId, run.id)
-              .then(() => console.log(`[${requestId}] Run cancelled successfully`))
-              .catch(err => console.error(`[${requestId}] Failed to cancel run:`, err));
-          } catch (cancelError) {
-            console.error(`[${requestId}] Error during run cancellation:`, cancelError);
-          }
+          // Cancel the run first, then close the writer
+          await cancelRun();
+          await safeCloseWriter();
         });
       } catch (signalError) {
         console.error(`[${requestId}] Error setting up abort signal listener:`, signalError);
       }
+      
+      // Track run status outside the try block for use in finally
+      let runStatus: any = null;
       
       try {
         // Send initial metadata
@@ -247,6 +265,8 @@ export async function POST(req: Request) {
         
         // Poll for run status
         let status = await openAI.beta.threads.runs.retrieve(threadId, run.id);
+        runStatus = status; // Store for finally block
+        
         let attempts = 0;
         const maxAttempts = 60;
         
@@ -275,18 +295,34 @@ export async function POST(req: Request) {
                   const args = JSON.parse(toolCall.function.arguments);
                   
                   // Notify client about the tool call
-                  await sendMessage('t', {
+                  if (!await sendMessage('t', {
                     id: toolCall.id,
                     type: toolCall.type,
                     function: toolCall.function
-                  });
+                  })) {
+                    console.log(`[${requestId}] Failed to send tool call notification, aborting processing`);
+                    await cancelRun();
+                    break;
+                  }
                   
                   let output: any = null;
                   
                   if (fnName === 'get_keyword_metrics') {
+                    // Check again before making expensive API calls
+                    if (shouldCancel || writerClosed) {
+                      console.log(`[${requestId}] Cancelling keyword metrics due to client disconnection`);
+                      break;
+                    }
                     output = await processKeywordMetrics(args.keyword);
                   } else {
                     output = { error: `Unknown function: ${fnName}` };
+                  }
+                  
+                  // Check again before sending results - client might have disconnected during API call
+                  if (shouldCancel || writerClosed) {
+                    console.log(`[${requestId}] Client disconnected during tool processing, cancelling`);
+                    await cancelRun();
+                    break;
                   }
                   
                   // Send result to client
@@ -295,34 +331,38 @@ export async function POST(req: Request) {
                     result: output
                   });
                   
-                  // Only add to toolOutputs if sending succeeded
-                  if (sendSuccess && output) {
+                  // Only add to toolOutputs if sending succeeded and we're still connected
+                  if (sendSuccess && output && !shouldCancel && !writerClosed) {
                     toolOutputs.push({
                       tool_call_id: toolCall.id,
                       output: JSON.stringify(output)
                     });
                   }
                 } catch (toolError: any) {
+                  // Check if we should continue processing errors
+                  if (shouldCancel || writerClosed) {
+                    console.log(`[${requestId}] Skipping error handling due to client disconnection`);
+                    break;
+                  }
+                  
                   console.error(`[${requestId}] Tool processing error:`, toolError);
                   const errorOutput = {
                     error: toolError.message || 'Tool processing error'
                   };
                   
                   // Try to send error to client
-                  try {
-                    await sendMessage('r', {
-                      toolCallId: toolCall.id,
-                      result: errorOutput
-                    });
-                  } catch (sendError) {
-                    console.error(`[${requestId}] Error sending tool error:`, sendError);
-                  }
-                  
-                  // Add error to toolOutputs
-                  toolOutputs.push({
-                    tool_call_id: toolCall.id,
-                    output: JSON.stringify(errorOutput)
+                  const sendSuccess = await sendMessage('r', {
+                    toolCallId: toolCall.id,
+                    result: errorOutput
                   });
+                  
+                  // Add error to toolOutputs only if we're still connected
+                  if (sendSuccess && !shouldCancel && !writerClosed) {
+                    toolOutputs.push({
+                      tool_call_id: toolCall.id,
+                      output: JSON.stringify(errorOutput)
+                    });
+                  }
                 }
               }
               
@@ -340,6 +380,13 @@ export async function POST(req: Request) {
                   await delay(1000);
                   continue;
                 } catch (submitError: any) {
+                  // Check if we're still connected before handling errors
+                  if (shouldCancel || writerClosed) {
+                    console.log(`[${requestId}] Client disconnected during tool output submission`);
+                    await cancelRun();
+                    return;
+                  }
+                  
                   console.error(`[${requestId}] Error submitting tool outputs:`, submitError);
                   await sendMessage('3', `Error submitting tool outputs: ${submitError.message || 'Unknown error'}`);
                   await sendMessage('d', { 
@@ -349,6 +396,11 @@ export async function POST(req: Request) {
                   await safeCloseWriter();
                   return;
                 }
+              } else if (shouldCancel || writerClosed) {
+                // If we have no tool outputs due to disconnection, cancel the run
+                console.log(`[${requestId}] No tool outputs to submit due to client disconnection`);
+                await cancelRun();
+                return;
               }
             }
           }
@@ -359,7 +411,8 @@ export async function POST(req: Request) {
           
           // Don't continue polling if client disconnected or stream is closed
           if (shouldCancel || writerClosed) {
-            console.log(`[${requestId}] Stopping polling due to ${shouldCancel ? 'client disconnection' : 'closed stream'}`);
+            console.log(`[${requestId}] Stopping polling due to client disconnection or closed stream`);
+            await cancelRun();
             break;
           }
           
@@ -367,6 +420,12 @@ export async function POST(req: Request) {
           try {
             status = await openAI.beta.threads.runs.retrieve(threadId, run.id);
           } catch (pollError: any) {
+            // Check if disconnected before handling error
+            if (shouldCancel || writerClosed) {
+              console.log(`[${requestId}] Client disconnected during status polling`);
+              return;
+            }
+            
             console.error(`[${requestId}] Error polling run status:`, pollError);
             try {
               await sendMessage('3', `Error polling run status: ${pollError.message || 'Unknown error'}`);
@@ -382,67 +441,88 @@ export async function POST(req: Request) {
           }
         }
         
+        // Final status check
+        console.log(`[${requestId}] Final run status: ${status.status}`);
+        
+        // Explicitly cancel any incomplete runs before we finish processing
+        if (['queued', 'in_progress', 'requires_action'].includes(status.status) && !shouldCancel) {
+          console.log(`[${requestId}] Cancelling incomplete run before closing stream`);
+          await cancelRun();
+        }
+        
         // Handle completion
-        if (status.status === 'completed') {
+        if (status.status === 'completed' && !shouldCancel && !writerClosed) {
           console.log(`[${requestId}] Run completed, fetching messages`);
           
-          if (!shouldCancel && !writerClosed) {
-            try {
-              // Get latest messages
-              const messages = await openAI.beta.threads.messages.list(threadId);
-              const assistantMessages = messages.data
-                .filter(message => message.role === 'assistant')
-                .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+          try {
+            // Get latest messages
+            const messages = await openAI.beta.threads.messages.list(threadId);
+            const assistantMessages = messages.data
+              .filter(message => message.role === 'assistant')
+              .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+            
+            if (assistantMessages.length > 0 && !shouldCancel && !writerClosed) {
+              const latestMessage = assistantMessages[0];
               
-              if (assistantMessages.length > 0 && !shouldCancel && !writerClosed) {
-                const latestMessage = assistantMessages[0];
+              // Stream content
+              for (const part of latestMessage.content) {
+                if (shouldCancel || writerClosed) {
+                  console.log(`[${requestId}] Stopping content streaming due to client disconnection`);
+                  break;
+                }
                 
-                // Stream content
-                for (const part of latestMessage.content) {
-                  if (shouldCancel || writerClosed) break;
+                if (part.type === 'text') {
+                  // Stream in small chunks for a typing effect
+                  const text = part.text.value;
+                  const chunkSize = 3;
                   
-                  if (part.type === 'text') {
-                    // Stream in small chunks for a typing effect
-                    const text = part.text.value;
-                    const chunkSize = 3;
-                    
-                    for (let i = 0; i < text.length && !shouldCancel && !writerClosed; i += chunkSize) {
-                      const chunk = text.slice(i, i + chunkSize);
-                      await sendMessage('0', chunk);
-                      await delay(10);
+                  for (let i = 0; i < text.length; i += chunkSize) {
+                    // Check before each chunk if we should continue
+                    if (shouldCancel || writerClosed) {
+                      console.log(`[${requestId}] Stopping mid-chunk due to client disconnection`);
+                      break;
                     }
+                    
+                    const chunk = text.slice(i, i + chunkSize);
+                    await sendMessage('0', chunk);
+                    await delay(10);
                   }
                 }
-                
-                // Send completion if not cancelled
-                if (!shouldCancel && !writerClosed) {
-                  await sendMessage('d', { 
-                    finishReason: 'stop', 
-                    usage: { promptTokens: 0, completionTokens: 0 } 
-                  });
-                }
-              } else if (!shouldCancel && !writerClosed) {
-                await sendMessage('3', 'No assistant response found');
+              }
+              
+              // Send completion if not cancelled
+              if (!shouldCancel && !writerClosed) {
                 await sendMessage('d', { 
-                  finishReason: 'error', 
+                  finishReason: 'stop', 
                   usage: { promptTokens: 0, completionTokens: 0 } 
                 });
               }
-            } catch (messageError: any) {
-              console.error(`[${requestId}] Error fetching messages:`, messageError);
-              try {
-                await sendMessage('3', `Error fetching messages: ${messageError.message || 'Unknown error'}`);
-                await sendMessage('d', { 
-                  finishReason: 'error', 
-                  usage: { promptTokens: 0, completionTokens: 0 } 
-                });
-              } catch (finalError) {
-                console.error(`[${requestId}] Error sending final error:`, finalError);
-              }
-              await safeCloseWriter();
+            } else if (!shouldCancel && !writerClosed) {
+              await sendMessage('3', 'No assistant response found');
+              await sendMessage('d', { 
+                finishReason: 'error', 
+                usage: { promptTokens: 0, completionTokens: 0 } 
+              });
+            }
+          } catch (messageError: any) {
+            // Check if we're still connected before handling errors
+            if (shouldCancel || writerClosed) {
+              console.log(`[${requestId}] Client disconnected during message fetching`);
+              return;
+            }
+            
+            console.error(`[${requestId}] Error fetching messages:`, messageError);
+            try {
+              await sendMessage('3', `Error fetching messages: ${messageError.message || 'Unknown error'}`);
+              await sendMessage('d', { 
+                finishReason: 'error', 
+                usage: { promptTokens: 0, completionTokens: 0 } 
+              });
+            } catch (finalError) {
+              console.error(`[${requestId}] Error sending final error:`, finalError);
             }
           }
-        } else {
+        } else if (!shouldCancel && !writerClosed) {
           // Handle non-completed status
           const reason = status.status === 'failed' 
             ? `Run failed: ${status.last_error?.message || 'Unknown error'}`
@@ -450,17 +530,19 @@ export async function POST(req: Request) {
           
           console.log(`[${requestId}] ${reason}`);
           
-          try {
-            await sendMessage('3', reason);
-            await sendMessage('d', { 
-              finishReason: 'error', 
-              usage: { promptTokens: 0, completionTokens: 0 } 
-            });
-          } catch (finalError) {
-            console.error(`[${requestId}] Error sending final error:`, finalError);
-          }
+          await sendMessage('3', reason);
+          await sendMessage('d', { 
+            finishReason: 'error', 
+            usage: { promptTokens: 0, completionTokens: 0 } 
+          });
         }
       } catch (error: any) {
+        // Final check before handling the error
+        if (shouldCancel || writerClosed) {
+          console.log(`[${requestId}] Client disconnected during processing, skipping error handling`);
+          return;
+        }
+        
         console.error(`[${requestId}] Processing error:`, error);
         try {
           await sendMessage('3', `Error: ${error.message || 'Unknown error'}`);
@@ -471,11 +553,23 @@ export async function POST(req: Request) {
         } catch (finalError) {
           console.error(`[${requestId}] Error sending final error:`, finalError);
         }
-        await safeCloseWriter();
+      } finally {
+        // Always ensure we close the writer
+        if (!writerClosed) {
+          await safeCloseWriter();
+        }
+        
+        // Always ensure we cancel any pending runs
+        if (!shouldCancel && runStatus && runStatus.status) {
+          const runningStatuses = ['queued', 'in_progress', 'requires_action'];
+          if (runningStatuses.includes(runStatus.status)) {
+            await cancelRun();
+          }
+        }
       }
     })().catch((backgroundError) => {
       console.error(`[${requestId}] Unhandled error in async process:`, backgroundError);
-      // Don't try to close here, let the finally block handle it
+      // Error is already handled by the async function's try/catch/finally
     });
     
     // Return the readable stream
