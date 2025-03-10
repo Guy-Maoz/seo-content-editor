@@ -157,6 +157,9 @@ export async function POST(req: Request) {
     // Set up stream components
     const encoder = new TextEncoder();
     const streamController = new TransformStream();
+    
+    // Create a safe writer wrapper with closure tracking
+    let writerClosed = false;
     const writer = streamController.writable.getWriter();
     
     // Queue of messages to send
@@ -170,13 +173,44 @@ export async function POST(req: Request) {
     
     // Function to safely send messages through the stream
     const sendMessage = async (type: string, content: any) => {
+      if (writerClosed) {
+        console.log(`[${requestId}] Skipping send - writer is already closed`);
+        return false;
+      }
+      
       try {
         const message = `${type}:${JSON.stringify(content)}\n`;
         await writer.write(encoder.encode(message));
         return true;
       } catch (error) {
         console.error(`[${requestId}] Error writing message type ${type}:`, error);
+        writerClosed = true;
         return false;
+      }
+    };
+    
+    // Safe close function that won't throw if already closed
+    const safeCloseWriter = async () => {
+      if (writerClosed) {
+        console.log(`[${requestId}] Writer already marked as closed, skipping close operation`);
+        return;
+      }
+      
+      writerClosed = true;
+      try {
+        // Use a timeout to ensure we don't hang if close is stuck
+        const closePromise = writer.close();
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Close operation timed out')), 2000)
+        );
+        
+        await Promise.race([closePromise, timeoutPromise]).catch(err => {
+          console.log(`[${requestId}] Controlled writer close error:`, err.message);
+        });
+        
+        console.log(`[${requestId}] Stream closed successfully`);
+      } catch (closeError) {
+        console.log(`[${requestId}] Expected close error (already handled):`, closeError);
       }
     };
     
@@ -189,6 +223,7 @@ export async function POST(req: Request) {
         req.signal.addEventListener('abort', () => {
           console.log(`[${requestId}] Client disconnected, aborting run processing`);
           shouldCancel = true;
+          writerClosed = true;  // Mark writer as closed on disconnect
           
           // Cancel the run to prevent wasted resources
           try {
@@ -205,7 +240,10 @@ export async function POST(req: Request) {
       
       try {
         // Send initial metadata
-        await sendMessage('f', { messageId: `msg-${Date.now()}` });
+        if (!await sendMessage('f', { messageId: `msg-${Date.now()}` })) {
+          console.log(`[${requestId}] Failed to send initial message, stream likely closed`);
+          return;
+        }
         
         // Poll for run status
         let status = await openAI.beta.threads.runs.retrieve(threadId, run.id);
@@ -214,21 +252,21 @@ export async function POST(req: Request) {
         
         while (['queued', 'in_progress', 'requires_action'].includes(status.status) && 
                attempts < maxAttempts && 
-               !shouldCancel) {
+               !shouldCancel && !writerClosed) {
           console.log(`[${requestId}] Run status: ${status.status} (Attempt ${attempts + 1}/${maxAttempts})`);
           
           // Handle tool calls
           if (status.status === 'requires_action') {
             console.log(`[${requestId}] Processing tool calls...`);
             
-            if (status.required_action?.type === 'submit_tool_outputs' && !shouldCancel) {
+            if (status.required_action?.type === 'submit_tool_outputs' && !shouldCancel && !writerClosed) {
               const toolOutputs: ToolOutput[] = [];
               
               // Process each tool call
               for (const toolCall of status.required_action.submit_tool_outputs.tool_calls) {
-                // Stop processing if client disconnected
-                if (shouldCancel) {
-                  console.log(`[${requestId}] Skipping tool call processing due to client disconnection`);
+                // Stop processing if client disconnected or stream is closed
+                if (shouldCancel || writerClosed) {
+                  console.log(`[${requestId}] Skipping tool call processing due to ${shouldCancel ? 'client disconnection' : 'closed stream'}`);
                   break;
                 }
                 
@@ -289,7 +327,7 @@ export async function POST(req: Request) {
               }
               
               // Submit tool outputs to OpenAI
-              if (toolOutputs.length > 0 && !shouldCancel) {
+              if (toolOutputs.length > 0 && !shouldCancel && !writerClosed) {
                 try {
                   console.log(`[${requestId}] Submitting ${toolOutputs.length} tool outputs to OpenAI`);
                   status = await openAI.beta.threads.runs.submitToolOutputs(threadId, run.id, {
@@ -308,7 +346,7 @@ export async function POST(req: Request) {
                     finishReason: 'error', 
                     usage: { promptTokens: 0, completionTokens: 0 } 
                   });
-                  writer.close().catch(() => {});
+                  await safeCloseWriter();
                   return;
                 }
               }
@@ -319,9 +357,9 @@ export async function POST(req: Request) {
           await delay(1000);
           attempts++;
           
-          // Don't continue polling if client disconnected
-          if (shouldCancel) {
-            console.log(`[${requestId}] Stopping polling due to client disconnection`);
+          // Don't continue polling if client disconnected or stream is closed
+          if (shouldCancel || writerClosed) {
+            console.log(`[${requestId}] Stopping polling due to ${shouldCancel ? 'client disconnection' : 'closed stream'}`);
             break;
           }
           
@@ -339,7 +377,7 @@ export async function POST(req: Request) {
             } catch (finalError) {
               console.error(`[${requestId}] Error sending final error:`, finalError);
             }
-            writer.close().catch(() => {});
+            await safeCloseWriter();
             return;
           }
         }
@@ -348,7 +386,7 @@ export async function POST(req: Request) {
         if (status.status === 'completed') {
           console.log(`[${requestId}] Run completed, fetching messages`);
           
-          if (!shouldCancel) {
+          if (!shouldCancel && !writerClosed) {
             try {
               // Get latest messages
               const messages = await openAI.beta.threads.messages.list(threadId);
@@ -356,19 +394,19 @@ export async function POST(req: Request) {
                 .filter(message => message.role === 'assistant')
                 .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
               
-              if (assistantMessages.length > 0 && !shouldCancel) {
+              if (assistantMessages.length > 0 && !shouldCancel && !writerClosed) {
                 const latestMessage = assistantMessages[0];
                 
                 // Stream content
                 for (const part of latestMessage.content) {
-                  if (shouldCancel) break;
+                  if (shouldCancel || writerClosed) break;
                   
                   if (part.type === 'text') {
                     // Stream in small chunks for a typing effect
                     const text = part.text.value;
                     const chunkSize = 3;
                     
-                    for (let i = 0; i < text.length && !shouldCancel; i += chunkSize) {
+                    for (let i = 0; i < text.length && !shouldCancel && !writerClosed; i += chunkSize) {
                       const chunk = text.slice(i, i + chunkSize);
                       await sendMessage('0', chunk);
                       await delay(10);
@@ -377,13 +415,13 @@ export async function POST(req: Request) {
                 }
                 
                 // Send completion if not cancelled
-                if (!shouldCancel) {
+                if (!shouldCancel && !writerClosed) {
                   await sendMessage('d', { 
                     finishReason: 'stop', 
                     usage: { promptTokens: 0, completionTokens: 0 } 
                   });
                 }
-              } else if (!shouldCancel) {
+              } else if (!shouldCancel && !writerClosed) {
                 await sendMessage('3', 'No assistant response found');
                 await sendMessage('d', { 
                   finishReason: 'error', 
@@ -401,6 +439,7 @@ export async function POST(req: Request) {
               } catch (finalError) {
                 console.error(`[${requestId}] Error sending final error:`, finalError);
               }
+              await safeCloseWriter();
             }
           }
         } else {
@@ -432,23 +471,11 @@ export async function POST(req: Request) {
         } catch (finalError) {
           console.error(`[${requestId}] Error sending final error:`, finalError);
         }
-      } finally {
-        // Always close the writer when done
-        try {
-          // Check if the stream is still writable before trying to close it
-          const writerState = writer.desiredSize !== null;
-          if (writerState) {
-            await writer.close();
-            console.log(`[${requestId}] Stream closed successfully`);
-          } else {
-            console.log(`[${requestId}] Stream already closed, skipping close operation`);
-          }
-        } catch (closeError) {
-          console.error(`[${requestId}] Error closing stream:`, closeError);
-        }
+        await safeCloseWriter();
       }
     })().catch((backgroundError) => {
       console.error(`[${requestId}] Unhandled error in async process:`, backgroundError);
+      // Don't try to close here, let the finally block handle it
     });
     
     // Return the readable stream
