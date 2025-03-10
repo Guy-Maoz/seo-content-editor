@@ -1,4 +1,5 @@
 import fetch from 'node-fetch';
+import { Readable } from 'stream';
 
 // Configuration
 const API_URL = 'http://localhost:3001/api/chat';
@@ -35,6 +36,10 @@ async function runTest(testId) {
   
   try {
     // Make API request
+    const controller = new AbortController();
+    const signal = controller.signal;
+    const disconnectTimeout = getRandomInt(2000, 5000); // Random disconnect time
+    
     const response = await fetch(API_URL, {
       method: 'POST',
       headers: {
@@ -48,7 +53,8 @@ async function runTest(testId) {
           }
         ],
         threadId: null // Create a new thread each time
-      })
+      }),
+      signal
     });
     
     if (!response.ok) {
@@ -57,67 +63,97 @@ async function runTest(testId) {
     
     console.log(`[Test ${testId}] Connected to stream`);
     
-    // Process the stream
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
+    // Process the stream using Node.js streams
     let receivedMessages = 0;
     let toolCallReceived = false;
     let toolResultReceived = false;
     let completionReceived = false;
     let shouldDisconnect = Math.random() < DISCONNECT_PROBABILITY;
-    let disconnectAfterMessages = shouldDisconnect ? getRandomInt(3, 10) : Infinity;
     
-    while (true) {
-      const { value, done } = await reader.read();
-      
-      if (done) {
-        console.log(`[Test ${testId}] Stream closed normally`);
-        break;
-      }
-      
-      const chunk = decoder.decode(value);
-      const lines = chunk.split('\n').filter(line => line.trim());
-      
-      for (const line of lines) {
-        receivedMessages++;
-        
-        if (line.startsWith('t:')) {
-          toolCallReceived = true;
-          console.log(`[Test ${testId}] Received tool call`);
-        }
-        
-        if (line.startsWith('r:')) {
-          toolResultReceived = true;
-          console.log(`[Test ${testId}] Received tool result`);
-        }
-        
-        if (line.startsWith('d:')) {
-          completionReceived = true;
-          console.log(`[Test ${testId}] Received completion message`);
-        }
-        
-        // Simulate client disconnecting
-        if (receivedMessages >= disconnectAfterMessages && shouldDisconnect) {
-          console.log(`[Test ${testId}] Simulating client disconnect after ${receivedMessages} messages`);
-          stats.disconnected++;
-          await reader.cancel();
-          const duration = Date.now() - startTime;
-          console.log(`[Test ${testId}] Disconnected after ${duration}ms`);
-          return;
-        }
-      }
+    // Set up random disconnect timeout if needed
+    let disconnectTimer = null;
+    if (shouldDisconnect) {
+      console.log(`[Test ${testId}] Will disconnect after ${disconnectTimeout}ms`);
+      disconnectTimer = setTimeout(() => {
+        console.log(`[Test ${testId}] Simulating client disconnect after ${disconnectTimeout}ms`);
+        controller.abort();
+        stats.disconnected++;
+        const duration = Date.now() - startTime;
+        console.log(`[Test ${testId}] Disconnected after ${duration}ms`);
+      }, disconnectTimeout);
     }
     
-    // Test completed successfully
-    stats.completed++;
-    const duration = Date.now() - startTime;
-    stats.totalDuration += duration;
-    console.log(`[Test ${testId}] Test completed successfully: received ${receivedMessages} messages, tool call: ${toolCallReceived}, tool result: ${toolResultReceived}, completion: ${completionReceived}, duration: ${duration}ms`);
+    // Process the response body as a text stream
+    const stream = Readable.fromWeb(response.body);
+    let buffer = '';
+    
+    // Create a promise to handle stream completion
+    const streamComplete = new Promise((resolve, reject) => {
+      stream.on('data', (chunk) => {
+        buffer += chunk.toString();
+        
+        // Process complete lines
+        const lines = buffer.split('\n');
+        buffer = lines.pop(); // Keep the last incomplete line in the buffer
+        
+        // Process each complete line
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          
+          receivedMessages++;
+          
+          if (line.startsWith('t:')) {
+            toolCallReceived = true;
+            console.log(`[Test ${testId}] Received tool call`);
+          }
+          
+          if (line.startsWith('r:')) {
+            toolResultReceived = true;
+            console.log(`[Test ${testId}] Received tool result`);
+          }
+          
+          if (line.startsWith('d:')) {
+            completionReceived = true;
+            console.log(`[Test ${testId}] Received completion message`);
+          }
+        }
+      });
+      
+      stream.on('end', () => {
+        console.log(`[Test ${testId}] Stream closed normally`);
+        if (disconnectTimer) clearTimeout(disconnectTimer);
+        resolve();
+      });
+      
+      stream.on('error', (error) => {
+        if (error.name === 'AbortError') {
+          console.log(`[Test ${testId}] Stream aborted as expected`);
+          resolve(); // Consider this a "success" since we intentionally aborted
+        } else {
+          console.error(`[Test ${testId}] Stream error:`, error);
+          reject(error);
+        }
+      });
+    });
+    
+    // Wait for stream to complete
+    await streamComplete;
+    
+    // If the test wasn't disconnected, count it as completed
+    if (!shouldDisconnect || !disconnectTimer) {
+      stats.completed++;
+      const duration = Date.now() - startTime;
+      stats.totalDuration += duration;
+      console.log(`[Test ${testId}] Test completed successfully: received ${receivedMessages} messages, tool call: ${toolCallReceived}, tool result: ${toolResultReceived}, completion: ${completionReceived}, duration: ${duration}ms`);
+    }
     
   } catch (error) {
-    stats.failed++;
-    stats.errors.push({ testId, error: error.message });
-    console.error(`[Test ${testId}] Test error:`, error);
+    // Don't count aborted requests as failures
+    if (error.name !== 'AbortError') {
+      stats.failed++;
+      stats.errors.push({ testId, error: error.message });
+      console.error(`[Test ${testId}] Test error:`, error);
+    }
   }
 }
 
