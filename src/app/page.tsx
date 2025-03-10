@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import TopicInput from '@/components/topic-input';
 import KeywordBank from '@/components/keyword-bank';
 import ContentEditor from '@/components/content-editor';
@@ -26,10 +26,32 @@ export default function Home() {
   const [isAnalyzingContent, setIsAnalyzingContent] = useState(false);
   const [isLoadingMoreKeywords, setIsLoadingMoreKeywords] = useState(false);
   const [isTransparencyPanelExpanded, setIsTransparencyPanelExpanded] = useState(false);
-  const [isSidePanelVisible, setIsSidePanelVisible] = useState(true);
+  const [isSidePanelVisible, setIsSidePanelVisible] = useState(false);
   const [isClient, setIsClient] = useState(false);
   const [isDevMode, setIsDevMode] = useState(false);
   const { threadId } = useThreadContext();
+  
+  // Panel width/visibility state
+  const [panelWidth, setPanelWidth] = useState(400); // Default to 400px instead of 80px
+  const [isResizing, setIsResizing] = useState(false);
+  const resizingRef = useRef(false);
+  const startXRef = useRef(0);
+  const startWidthRef = useRef(0);
+  
+  // Load saved panel width from localStorage on mount
+  useEffect(() => {
+    const savedWidth = localStorage.getItem('aiPanelWidth');
+    if (savedWidth) {
+      setPanelWidth(parseInt(savedWidth, 10));
+    }
+  }, []);
+  
+  // Save panel width to localStorage when it changes
+  useEffect(() => {
+    if (panelWidth > 200) { // Only save if it's a reasonable width
+      localStorage.setItem('aiPanelWidth', panelWidth.toString());
+    }
+  }, [panelWidth]);
 
   // Add effect to handle server-side rendering
   useEffect(() => {
@@ -556,6 +578,44 @@ export default function Home() {
     setContent(newContent);
   };
 
+  // Toggle panel visibility
+  const toggleAIPanel = useCallback(() => {
+    setIsSidePanelVisible(prev => !prev);
+  }, []);
+
+  // Handle resize start
+  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+    resizingRef.current = true;
+    startXRef.current = e.clientX;
+    startWidthRef.current = panelWidth;
+    
+    // Add event listeners for mouse move and up
+    document.addEventListener('mousemove', handleResizeMove);
+    document.addEventListener('mouseup', handleResizeEnd);
+  }, [panelWidth]);
+
+  // Handle resize during mouse movement
+  const handleResizeMove = useCallback((e: MouseEvent) => {
+    if (!resizingRef.current) return;
+    
+    const deltaX = startXRef.current - e.clientX;
+    const newWidth = Math.max(200, Math.min(800, startWidthRef.current + deltaX));
+    
+    setPanelWidth(newWidth);
+  }, []);
+
+  // Handle resize end
+  const handleResizeEnd = useCallback(() => {
+    setIsResizing(false);
+    resizingRef.current = false;
+    
+    // Remove event listeners
+    document.removeEventListener('mousemove', handleResizeMove);
+    document.removeEventListener('mouseup', handleResizeEnd);
+  }, [handleResizeMove]);
+
   // If not client-side yet, render a simplified version of the UI without operations to avoid SSR issues
   if (!isClient) {
     return (
@@ -597,8 +657,11 @@ export default function Home() {
 
   return (
     <main className="container mx-auto px-4 py-8 relative flex">
-      {/* Main content area */}
-      <div className={`flex-grow transition-all duration-300 ${isSidePanelVisible ? 'mr-80' : 'mr-0'}`}>
+      {/* Main content area - adjust margin based on panel width */}
+      <div 
+        className={`flex-grow transition-all duration-300`}
+        style={{ marginRight: isSidePanelVisible ? `${panelWidth}px` : '0' }}
+      >
         <h1 className="text-3xl font-bold mb-8 text-center">AI-Powered SEO Content Editor</h1>
         
         <div className="mb-6">
@@ -635,35 +698,58 @@ export default function Home() {
         </div>
       </div>
 
+      {/* Resize handle */}
+      {isSidePanelVisible && (
+        <div 
+          className={`absolute top-0 bottom-0 left-0 w-1 bg-blue-500 cursor-col-resize z-20 ${isResizing ? 'opacity-100' : 'opacity-0 hover:opacity-50'}`}
+          style={{ left: `calc(100% - ${panelWidth}px - 2px)` }}
+          onMouseDown={handleResizeStart}
+        />
+      )}
+      
       {/* Toggle button for side panel */}
       <button 
-        onClick={() => setIsSidePanelVisible(!isSidePanelVisible)}
+        onClick={toggleAIPanel}
         className="fixed right-0 top-1/2 transform -translate-y-1/2 bg-blue-50 border-blue-200 border-l border-t border-b rounded-l-md p-2 z-50 shadow-md"
         aria-label={isSidePanelVisible ? "Hide AI Panel" : "Show AI Panel"}
         title={isSidePanelVisible ? "Hide AI Panel" : "Show AI Panel"}
       >
         {isSidePanelVisible ? <FiChevronRight /> : <FiChevronLeft />}
       </button>
-      
-      {/* Side panel */}
-      <div 
-        className={`fixed top-0 right-0 h-full w-80 bg-white border-l border-gray-200 shadow-lg z-40 transition-transform duration-300 transform ${isSidePanelVisible ? 'translate-x-0' : 'translate-x-full'} flex flex-col`}
+
+      {/* AI Assistant side panel with dynamic width */}
+      <div
+        className={`fixed top-0 right-0 h-full bg-white border-l border-gray-200 p-4 transform transition-transform duration-300 ease-in-out z-10 ${
+          isSidePanelVisible ? 'translate-x-0' : 'translate-x-full'
+        }`}
+        style={{ width: `${panelWidth}px` }}
       >
-        <div className="p-4 sticky top-0 bg-white border-b border-gray-200 z-10">
-          <h2 className="text-xl font-semibold flex items-center">
-            <FiInfo className="mr-2 text-blue-500" /> 
-            AI Assistant
-          </h2>
-          <p className="text-sm text-gray-600 mt-1">Ask questions or request SEO assistance</p>
+        {/* Panel header with resize indicator */}
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-lg font-semibold">AI Assistant</h2>
+          <div className="flex items-center">
+            <span className="text-xs text-gray-500 mr-2">{panelWidth}px</span>
+            <button 
+              onClick={toggleAIPanel}
+              className="p-1 rounded-full hover:bg-gray-100"
+            >
+              <FiChevronRight className="h-5 w-5" />
+            </button>
+          </div>
         </div>
-        
-        {/* Middle scrollable content - CustomChatAssistant */}
+
+        {/* Custom chat assistant component */}
         <div className="p-4 flex-1 overflow-hidden">
           <CustomChatAssistant />
         </div>
-          
+        
+        {/* Add a note about resizing */}
+        <div className="mt-2 text-xs text-gray-500 text-center">
+          Drag left edge to resize panel
+        </div>
+        
         {/* Developer Tools - Fixed to bottom */}
-        <div className="p-4 border-t border-gray-200 bg-white sticky bottom-0">
+        <div className="p-4 border-t border-gray-200 bg-white mt-4">
           <h3 className="text-sm font-medium mb-2">Developer Tools</h3>
           <div className="space-y-2">
             <button 
