@@ -182,6 +182,27 @@ export async function POST(req: Request) {
     
     // Process the run in the background
     (async () => {
+      let shouldCancel = false;
+      
+      // Set up handler for client disconnection
+      try {
+        req.signal.addEventListener('abort', () => {
+          console.log(`[${requestId}] Client disconnected, aborting run processing`);
+          shouldCancel = true;
+          
+          // Cancel the run to prevent wasted resources
+          try {
+            openAI.beta.threads.runs.cancel(threadId, run.id)
+              .then(() => console.log(`[${requestId}] Run cancelled successfully`))
+              .catch(err => console.error(`[${requestId}] Failed to cancel run:`, err));
+          } catch (cancelError) {
+            console.error(`[${requestId}] Error during run cancellation:`, cancelError);
+          }
+        });
+      } catch (signalError) {
+        console.error(`[${requestId}] Error setting up abort signal listener:`, signalError);
+      }
+      
       try {
         // Send initial metadata
         await sendMessage('f', { messageId: `msg-${Date.now()}` });
@@ -191,18 +212,26 @@ export async function POST(req: Request) {
         let attempts = 0;
         const maxAttempts = 60;
         
-        while (['queued', 'in_progress', 'requires_action'].includes(status.status) && attempts < maxAttempts) {
+        while (['queued', 'in_progress', 'requires_action'].includes(status.status) && 
+               attempts < maxAttempts && 
+               !shouldCancel) {
           console.log(`[${requestId}] Run status: ${status.status} (Attempt ${attempts + 1}/${maxAttempts})`);
           
           // Handle tool calls
           if (status.status === 'requires_action') {
             console.log(`[${requestId}] Processing tool calls...`);
             
-            if (status.required_action?.type === 'submit_tool_outputs') {
+            if (status.required_action?.type === 'submit_tool_outputs' && !shouldCancel) {
               const toolOutputs: ToolOutput[] = [];
               
               // Process each tool call
               for (const toolCall of status.required_action.submit_tool_outputs.tool_calls) {
+                // Stop processing if client disconnected
+                if (shouldCancel) {
+                  console.log(`[${requestId}] Skipping tool call processing due to client disconnection`);
+                  break;
+                }
+                
                 try {
                   const fnName = toolCall.function.name;
                   const args = JSON.parse(toolCall.function.arguments);
@@ -260,7 +289,7 @@ export async function POST(req: Request) {
               }
               
               // Submit tool outputs to OpenAI
-              if (toolOutputs.length > 0) {
+              if (toolOutputs.length > 0 && !shouldCancel) {
                 try {
                   console.log(`[${requestId}] Submitting ${toolOutputs.length} tool outputs to OpenAI`);
                   status = await openAI.beta.threads.runs.submitToolOutputs(threadId, run.id, {
@@ -290,6 +319,12 @@ export async function POST(req: Request) {
           await delay(1000);
           attempts++;
           
+          // Don't continue polling if client disconnected
+          if (shouldCancel) {
+            console.log(`[${requestId}] Stopping polling due to client disconnection`);
+            break;
+          }
+          
           // Get updated status
           try {
             status = await openAI.beta.threads.runs.retrieve(threadId, run.id);
@@ -313,53 +348,59 @@ export async function POST(req: Request) {
         if (status.status === 'completed') {
           console.log(`[${requestId}] Run completed, fetching messages`);
           
-          try {
-            // Get latest messages
-            const messages = await openAI.beta.threads.messages.list(threadId);
-            const assistantMessages = messages.data
-              .filter(message => message.role === 'assistant')
-              .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-            
-            if (assistantMessages.length > 0) {
-              const latestMessage = assistantMessages[0];
+          if (!shouldCancel) {
+            try {
+              // Get latest messages
+              const messages = await openAI.beta.threads.messages.list(threadId);
+              const assistantMessages = messages.data
+                .filter(message => message.role === 'assistant')
+                .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
               
-              // Stream content
-              for (const part of latestMessage.content) {
-                if (part.type === 'text') {
-                  // Stream in small chunks for a typing effect
-                  const text = part.text.value;
-                  const chunkSize = 3;
+              if (assistantMessages.length > 0 && !shouldCancel) {
+                const latestMessage = assistantMessages[0];
+                
+                // Stream content
+                for (const part of latestMessage.content) {
+                  if (shouldCancel) break;
                   
-                  for (let i = 0; i < text.length; i += chunkSize) {
-                    const chunk = text.slice(i, i + chunkSize);
-                    await sendMessage('0', chunk);
-                    await delay(10);
+                  if (part.type === 'text') {
+                    // Stream in small chunks for a typing effect
+                    const text = part.text.value;
+                    const chunkSize = 3;
+                    
+                    for (let i = 0; i < text.length && !shouldCancel; i += chunkSize) {
+                      const chunk = text.slice(i, i + chunkSize);
+                      await sendMessage('0', chunk);
+                      await delay(10);
+                    }
                   }
                 }
+                
+                // Send completion if not cancelled
+                if (!shouldCancel) {
+                  await sendMessage('d', { 
+                    finishReason: 'stop', 
+                    usage: { promptTokens: 0, completionTokens: 0 } 
+                  });
+                }
+              } else if (!shouldCancel) {
+                await sendMessage('3', 'No assistant response found');
+                await sendMessage('d', { 
+                  finishReason: 'error', 
+                  usage: { promptTokens: 0, completionTokens: 0 } 
+                });
               }
-              
-              // Send completion
-              await sendMessage('d', { 
-                finishReason: 'stop', 
-                usage: { promptTokens: 0, completionTokens: 0 } 
-              });
-            } else {
-              await sendMessage('3', 'No assistant response found');
-              await sendMessage('d', { 
-                finishReason: 'error', 
-                usage: { promptTokens: 0, completionTokens: 0 } 
-              });
-            }
-          } catch (messageError: any) {
-            console.error(`[${requestId}] Error fetching messages:`, messageError);
-            try {
-              await sendMessage('3', `Error fetching messages: ${messageError.message || 'Unknown error'}`);
-              await sendMessage('d', { 
-                finishReason: 'error', 
-                usage: { promptTokens: 0, completionTokens: 0 } 
-              });
-            } catch (finalError) {
-              console.error(`[${requestId}] Error sending final error:`, finalError);
+            } catch (messageError: any) {
+              console.error(`[${requestId}] Error fetching messages:`, messageError);
+              try {
+                await sendMessage('3', `Error fetching messages: ${messageError.message || 'Unknown error'}`);
+                await sendMessage('d', { 
+                  finishReason: 'error', 
+                  usage: { promptTokens: 0, completionTokens: 0 } 
+                });
+              } catch (finalError) {
+                console.error(`[${requestId}] Error sending final error:`, finalError);
+              }
             }
           }
         } else {

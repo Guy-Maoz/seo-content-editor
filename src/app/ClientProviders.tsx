@@ -10,7 +10,7 @@ export default function ClientProviders({
   children: React.ReactNode;
 }) {
   return (
-    <ThreadProvider>
+    <ThreadProvider resetOnLoad={true}>
       <AITransparencyProvider>
         {children}
       </AITransparencyProvider>
