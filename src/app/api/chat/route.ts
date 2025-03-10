@@ -229,8 +229,22 @@ export async function POST(req: Request) {
       console.log(`[${requestId}] Cancelling run ${run.id}`);
       
       try {
-        await openAI.beta.threads.runs.cancel(threadId, run.id);
-        console.log(`[${requestId}] Run cancelled successfully`);
+        // Check run status before attempting to cancel
+        try {
+          const runDetails = await openAI.beta.threads.runs.retrieve(threadId, run.id);
+          
+          // Only attempt to cancel if the run is in a cancellable state
+          if (['queued', 'in_progress', 'requires_action'].includes(runDetails.status)) {
+            await openAI.beta.threads.runs.cancel(threadId, run.id);
+            console.log(`[${requestId}] Run cancelled successfully`);
+          } else {
+            console.log(`[${requestId}] Skipping cancellation for run in '${runDetails.status}' state`);
+          }
+        } catch (checkError) {
+          // If we can't retrieve the run, attempt to cancel anyway
+          console.log(`[${requestId}] Couldn't check run status, attempting cancellation:`, checkError);
+          await openAI.beta.threads.runs.cancel(threadId, run.id);
+        }
       } catch (cancelError) {
         console.error(`[${requestId}] Failed to cancel run:`, cancelError);
       }
@@ -562,12 +576,10 @@ export async function POST(req: Request) {
           await safeCloseWriter();
         }
         
-        // Always ensure we cancel any pending runs
-        if (!shouldCancel && runStatus && runStatus.status) {
-          const runningStatuses = ['queued', 'in_progress', 'requires_action'];
-          if (runningStatuses.includes(runStatus.status)) {
-            await cancelRun();
-          }
+        // Don't try to cancel runs that are already in a terminal state
+        if (!shouldCancel && runStatus && 
+            ['queued', 'in_progress', 'requires_action'].includes(runStatus.status)) {
+          await cancelRun();
         }
       }
     })().catch((backgroundError) => {
