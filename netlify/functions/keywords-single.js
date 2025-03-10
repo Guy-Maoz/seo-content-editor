@@ -19,8 +19,29 @@ exports.handler = async function(event, context) {
   }
 
   try {
-    // Parse the request body
-    const { keyword } = JSON.parse(event.body);
+    // Robust body parsing with logging for debugging
+    let requestData;
+    try {
+      // Log the raw request to help debug
+      const requestText = event.body;
+      console.log('Raw request body:', requestText);
+      
+      // Try to parse if not empty
+      if (requestText && requestText.trim()) {
+        requestData = JSON.parse(requestText);
+      } else {
+        throw new Error('Empty request body');
+      }
+    } catch (parseError) {
+      console.error('Error parsing request body:', parseError);
+      return {
+        statusCode: 400,
+        body: JSON.stringify({ error: "Invalid JSON in request body", details: parseError.message }),
+        headers: { "Content-Type": "application/json" }
+      };
+    }
+    
+    const { keyword } = requestData || {};
 
     if (!keyword) {
       return {
@@ -30,19 +51,20 @@ exports.handler = async function(event, context) {
       };
     }
 
-    // Log the start of processing
-    console.log(`Processing keyword request: "${keyword}"`);
+    // DIRECT CONSOLE OUTPUT - will always show in terminal
+    console.log(`\n\n======== KEYWORD REQUEST: "${keyword}" ========`);
+    console.log(`🔍 Processing keyword request: "${keyword}"`);
     
     // Get metrics for this keyword from SimilarWeb
     const metrics = await getKeywordMetricsFromSimilarWeb(keyword);
     
-    // Log fallback usage
+    // Log the outcome in a way that's visible in Netlify logs
     if (metrics.isFallback) {
-      console.log(`FALLBACK USED for "${keyword}": API failed`);
+      console.log(`\n⚠️⚠️⚠️ FALLBACK USED for "${keyword}": API failed ⚠️⚠️⚠️`);
     } else if (metrics.volume === 0) {
-      console.log(`Zero volume found for "${keyword}": This keyword has no search traffic according to SimilarWeb`);
+      console.log(`ℹ️ Zero volume found for "${keyword}": This keyword has no search traffic according to SimilarWeb`);
     } else {
-      console.log(`Real data found for "${keyword}": volume=${metrics.volume}`);
+      console.log(`✅ Real data found for "${keyword}": volume=${metrics.volume}`);
     }
     
     return {
@@ -59,7 +81,7 @@ exports.handler = async function(event, context) {
     console.error('Error fetching keyword metrics:', error);
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: "Failed to fetch keyword metrics" }),
+      body: JSON.stringify({ error: "Failed to fetch keyword metrics", details: error.message }),
       headers: { "Content-Type": "application/json" }
     };
   }

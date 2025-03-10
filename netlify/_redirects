@@ -1,0 +1,4 @@
+# API redirects for improved handling
+/api/keywords/*  /.netlify/functions/keywords/:splat  200
+/api/keywords  /.netlify/functions/keywords  200
+/api/keywords/single  /.netlify/functions/keywords-single  200 
