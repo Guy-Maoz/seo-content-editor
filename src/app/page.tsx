@@ -32,7 +32,7 @@ export default function Home() {
   const { threadId } = useThreadContext();
   
   // Panel width/visibility state
-  const [panelWidth, setPanelWidth] = useState(400); // Default to 400px instead of 80px
+  const [panelWidth, setPanelWidth] = useState(400); // Default to 400px 
   const [isResizing, setIsResizing] = useState(false);
   const resizingRef = useRef(false);
   const startXRef = useRef(0);
@@ -44,6 +44,10 @@ export default function Home() {
     if (savedWidth) {
       setPanelWidth(parseInt(savedWidth, 10));
     }
+    
+    // Default to showing the panel on desktop devices
+    const isDesktop = window.innerWidth > 1024;
+    setIsSidePanelVisible(isDesktop);
   }, []);
   
   // Save panel width to localStorage when it changes
@@ -591,17 +595,21 @@ export default function Home() {
     startXRef.current = e.clientX;
     startWidthRef.current = panelWidth;
     
-    // Add event listeners for mouse move and up
+    // Add global event listeners
     document.addEventListener('mousemove', handleResizeMove);
     document.addEventListener('mouseup', handleResizeEnd);
+    
+    // Add a resize class to the body to prevent text selection during resize
+    document.body.classList.add('resizing');
   }, [panelWidth]);
 
   // Handle resize during mouse movement
   const handleResizeMove = useCallback((e: MouseEvent) => {
     if (!resizingRef.current) return;
     
+    // Calculate new width based on mouse movement (right-to-left)
     const deltaX = startXRef.current - e.clientX;
-    const newWidth = Math.max(200, Math.min(800, startWidthRef.current + deltaX));
+    const newWidth = Math.max(250, Math.min(800, startWidthRef.current + deltaX));
     
     setPanelWidth(newWidth);
   }, []);
@@ -614,6 +622,9 @@ export default function Home() {
     // Remove event listeners
     document.removeEventListener('mousemove', handleResizeMove);
     document.removeEventListener('mouseup', handleResizeEnd);
+    
+    // Remove resize class
+    document.body.classList.remove('resizing');
   }, [handleResizeMove]);
 
   // If not client-side yet, render a simplified version of the UI without operations to avoid SSR issues
@@ -657,7 +668,7 @@ export default function Home() {
 
   return (
     <main className="container mx-auto px-4 py-8 relative flex">
-      {/* Main content area - adjust margin based on panel width */}
+      {/* Main content area */}
       <div 
         className={`flex-grow transition-all duration-300`}
         style={{ marginRight: isSidePanelVisible ? `${panelWidth}px` : '0' }}
@@ -698,75 +709,96 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Resize handle */}
+      {/* Resize handle - position properly on the left edge of the panel */}
       {isSidePanelVisible && (
         <div 
-          className={`absolute top-0 bottom-0 left-0 w-1 bg-blue-500 cursor-col-resize z-20 ${isResizing ? 'opacity-100' : 'opacity-0 hover:opacity-50'}`}
-          style={{ left: `calc(100% - ${panelWidth}px - 2px)` }}
+          className={`fixed top-0 bottom-0 w-4 cursor-col-resize z-30 ${isResizing ? 'opacity-50 bg-blue-200' : ''}`}
+          style={{ 
+            right: `${panelWidth}px`, 
+            transform: 'translateX(-50%)' 
+          }}
           onMouseDown={handleResizeStart}
-        />
+        >
+          <div className="absolute left-1/2 top-0 bottom-0 w-1 bg-blue-400 opacity-0 hover:opacity-100 transition-opacity" />
+        </div>
       )}
       
       {/* Toggle button for side panel */}
       <button 
         onClick={toggleAIPanel}
-        className="fixed right-0 top-1/2 transform -translate-y-1/2 bg-blue-50 border-blue-200 border-l border-t border-b rounded-l-md p-2 z-50 shadow-md"
-        aria-label={isSidePanelVisible ? "Hide AI Panel" : "Show AI Panel"}
-        title={isSidePanelVisible ? "Hide AI Panel" : "Show AI Panel"}
+        className={`fixed right-0 top-1/2 transform -translate-y-1/2 bg-blue-50 border-blue-200 border-l border-t border-b rounded-l-md p-2 shadow-md transition-all z-50 ${
+          isSidePanelVisible ? 'opacity-0 pointer-events-none' : 'opacity-100'
+        }`}
+        aria-label={isSidePanelVisible ? "Hide AI Panel" : "Show AI Assistant"}
+        title={isSidePanelVisible ? "Hide AI Panel" : "Show AI Assistant"}
       >
-        {isSidePanelVisible ? <FiChevronRight /> : <FiChevronLeft />}
+        <FiChevronLeft className="h-5 w-5" />
       </button>
 
-      {/* AI Assistant side panel with dynamic width */}
+      {/* AI Assistant side panel */}
       <div
-        className={`fixed top-0 right-0 h-full bg-white border-l border-gray-200 p-4 transform transition-transform duration-300 ease-in-out z-10 ${
+        className={`fixed top-0 right-0 bottom-0 overflow-hidden bg-white border-l border-gray-200 shadow-lg transform transition-transform duration-300 ease-in-out z-20 ${
           isSidePanelVisible ? 'translate-x-0' : 'translate-x-full'
-        }`}
+        } flex flex-col`}
         style={{ width: `${panelWidth}px` }}
       >
-        {/* Panel header with resize indicator */}
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg font-semibold">AI Assistant</h2>
+        {/* Panel header */}
+        <div className="flex justify-between items-center p-4 border-b border-gray-200">
+          <h2 className="text-lg font-semibold flex items-center">
+            <FiInfo className="mr-2 text-blue-500" /> 
+            AI Assistant
+          </h2>
           <div className="flex items-center">
             <span className="text-xs text-gray-500 mr-2">{panelWidth}px</span>
             <button 
               onClick={toggleAIPanel}
               className="p-1 rounded-full hover:bg-gray-100"
+              aria-label="Close panel"
             >
               <FiChevronRight className="h-5 w-5" />
             </button>
           </div>
         </div>
 
-        {/* Custom chat assistant component */}
-        <div className="p-4 flex-1 overflow-hidden">
-          <CustomChatAssistant />
-        </div>
-        
-        {/* Add a note about resizing */}
-        <div className="mt-2 text-xs text-gray-500 text-center">
-          Drag left edge to resize panel
-        </div>
-        
-        {/* Developer Tools - Fixed to bottom */}
-        <div className="p-4 border-t border-gray-200 bg-white mt-4">
-          <h3 className="text-sm font-medium mb-2">Developer Tools</h3>
-          <div className="space-y-2">
-            <button 
-              onClick={handleClearOperations}
-              className="w-full text-xs py-1 px-2 bg-gray-100 hover:bg-gray-200 rounded text-left"
-            >
-              Clear Operations
-            </button>
-            <button 
-              onClick={toggleDevMode}
-              className={`w-full text-xs py-1 px-2 ${isDevMode ? 'bg-blue-100 hover:bg-blue-200' : 'bg-gray-100 hover:bg-gray-200'} rounded text-left`}
-            >
-              {isDevMode ? 'Disable Dev Mode' : 'Enable Dev Mode'}
-            </button>
+        {/* Content area - make sure this scrolls properly */}
+        <div className="flex-1 overflow-hidden flex flex-col">
+          <div className="flex-1 overflow-y-auto">
+            <CustomChatAssistant />
+          </div>
+          
+          {/* Note about resizing */}
+          <div className="p-3 text-xs text-gray-500 text-center border-t border-gray-100">
+            Drag the left edge to resize
+          </div>
+          
+          {/* Developer Tools */}
+          <div className="p-4 border-t border-gray-200 bg-white">
+            <h3 className="text-sm font-medium mb-2">Developer Tools</h3>
+            <div className="space-y-2">
+              <button 
+                onClick={handleClearOperations}
+                className="w-full text-xs py-1 px-2 bg-gray-100 hover:bg-gray-200 rounded text-left"
+              >
+                Clear Operations
+              </button>
+              <button 
+                onClick={toggleDevMode}
+                className={`w-full text-xs py-1 px-2 ${isDevMode ? 'bg-blue-100 hover:bg-blue-200' : 'bg-gray-100 hover:bg-gray-200'} rounded text-left`}
+              >
+                {isDevMode ? 'Disable Dev Mode' : 'Enable Dev Mode'}
+              </button>
+            </div>
           </div>
         </div>
       </div>
+      
+      {/* Add global styles to prevent text selection during resize */}
+      <style jsx global>{`
+        body.resizing {
+          user-select: none;
+          cursor: col-resize !important;
+        }
+      `}</style>
     </main>
   );
 }
