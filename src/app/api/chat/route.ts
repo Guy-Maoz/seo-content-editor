@@ -134,16 +134,18 @@ export async function POST(req: Request) {
         const safeSend = (type: string, content: any) => {
           if (isStreamClosed) {
             console.log(`[${requestId}] Skipping message send - stream already closed`);
-            return;
+            return false;
           }
           
           try {
             const message = `${type}:${JSON.stringify(content)}\n`;
             controller.enqueue(encoder.encode(message));
+            return true;
           } catch (err) {
             console.error(`[${requestId}] Error sending message: ${err}`);
             // If we catch an error here, the stream may have been aborted by the client
             isStreamClosed = true;
+            return false;
           }
         };
         
@@ -208,17 +210,27 @@ export async function POST(req: Request) {
                       }
                       
                       // Add to outputs collection
-                      if (output && !isStreamClosed) {
-                        toolOutputs.push({
-                          tool_call_id: toolCall.id,
-                          output: JSON.stringify(output)
-                        });
-                        
-                        // Send result to client
-                        safeSend('r', {
-                          toolCallId: toolCall.id,
-                          result: output
-                        });
+                      if (output) {
+                        // Only add to toolOutputs if we can still send to the client
+                        // This way we don't collect outputs we can't submit
+                        if (!isStreamClosed) {
+                          try {
+                            // Send result to client first
+                            if (safeSend('r', {
+                              toolCallId: toolCall.id,
+                              result: output
+                            })) {
+                              // Only add to outputs if sending succeeded
+                              toolOutputs.push({
+                                tool_call_id: toolCall.id,
+                                output: JSON.stringify(output)
+                              });
+                            }
+                          } catch (sendError) {
+                            console.error(`[${requestId}] Error sending tool result:`, sendError);
+                            // Don't add to outputs if we couldn't send
+                          }
+                        }
                       }
                     } catch (toolError: any) {
                       console.error(`[${requestId}] Tool processing error:`, toolError);
@@ -256,16 +268,21 @@ export async function POST(req: Request) {
                   } catch (submitError: any) {
                     console.error(`[${requestId}] Error submitting tool outputs:`, submitError);
                     
+                    // Only try to send error if stream is still open
                     if (!isStreamClosed) {
-                      safeSend('3', `Error: ${submitError.message}`);
-                      safeSend('d', { 
-                        finishReason: 'error', 
-                        usage: { promptTokens: 0, completionTokens: 0 } 
-                      });
-                      
-                      // Exit early
-                      handleStreamClosure();
-                      return;
+                      try {
+                        safeSend('3', `Error: ${submitError.message || 'Unknown error'}`);
+                        safeSend('d', { 
+                          finishReason: 'error', 
+                          usage: { promptTokens: 0, completionTokens: 0 } 
+                        });
+                      } catch (finalError) {
+                        console.error(`[${requestId}] Error sending final error message:`, finalError);
+                      } finally {
+                        // Always close the stream after an error
+                        handleStreamClosure();
+                        return;
+                      }
                     }
                   }
                 }
@@ -326,15 +343,23 @@ export async function POST(req: Request) {
                 });
               }
             } catch (messageError: any) {
-              console.error(`[${requestId}] Error fetching messages:`, messageError);
+              console.error(`[${requestId}] Error processing message:`, messageError);
               
+              // Only attempt to send error if stream is still open
               if (!isStreamClosed) {
-                safeSend('3', `Error: ${messageError.message}`);
-                safeSend('d', { 
-                  finishReason: 'error', 
-                  usage: { promptTokens: 0, completionTokens: 0 } 
-                });
+                try {
+                  safeSend('3', `An error occurred: ${messageError.message || 'Unknown error'}`);
+                  safeSend('d', { 
+                    finishReason: 'error', 
+                    usage: { promptTokens: 0, completionTokens: 0 } 
+                  });
+                } catch (finalError) {
+                  console.error(`[${requestId}] Error sending final error message:`, finalError);
+                }
               }
+            } finally {
+              // Always ensure we close the stream when we're done
+              handleStreamClosure();
             }
           } else if (!isStreamClosed) {
             // Handle non-completed status
@@ -351,18 +376,22 @@ export async function POST(req: Request) {
             });
           }
         } catch (error: any) {
-          console.error(`[${requestId}] Stream processing error:`, error);
+          console.error(`[${requestId}] Run processing error:`, error);
           
+          // Only attempt to send error if stream is still open
           if (!isStreamClosed) {
-            safeSend('3', `Error: ${error.message || 'Unknown error'}`);
-            safeSend('d', { 
-              finishReason: 'error', 
-              usage: { promptTokens: 0, completionTokens: 0 } 
-            });
+            try {
+              safeSend('3', `An error occurred during processing: ${error.message || 'Unknown error'}`);
+              safeSend('d', { 
+                finishReason: 'error', 
+                usage: { promptTokens: 0, completionTokens: 0 } 
+              });
+            } catch (finalError) {
+              console.error(`[${requestId}] Error sending final error message:`, finalError);
+            } finally {
+              handleStreamClosure();
+            }
           }
-        } finally {
-          // Ensure stream is properly closed
-          handleStreamClosure();
         }
       }
     });
@@ -399,25 +428,28 @@ async function processKeywordMetrics(keyword: string, requestId: string): Promis
       console.log(`[${requestId}] Got metrics for "${keyword}":`, data);
       return data;
     } else {
-      console.log(`[${requestId}] API error ${response.status}: ${response.statusText}`);
+      // Handle API error
+      const errorText = await response.text();
+      console.error(`[${requestId}] API error:`, errorText);
       return {
         keyword,
-        volume: 1000, 
-        difficulty: 50,
-        cpc: 0.5,
+        volume: 0,
+        difficulty: 0,
+        cpc: 0,
         isFallback: true,
-        error: `API error: ${response.status}`
+        error: `API returned status ${response.status}`
       };
     }
-  } catch (apiError: any) {
-    console.error(`[${requestId}] API call error:`, apiError);
+  } catch (error: any) {
+    // Handle network error
+    console.error(`[${requestId}] Network error:`, error);
     return {
       keyword,
-      volume: 1000, 
-      difficulty: 50,
-      cpc: 0.5,
+      volume: Math.floor(Math.random() * 10000),  // Fallback random data
+      difficulty: Math.floor(Math.random() * 100),
+      cpc: parseFloat((Math.random() * 5).toFixed(2)),
       isFallback: true,
-      error: apiError.message || 'Unknown API error'
+      error: error.message || 'Network error'
     };
   }
 } 
