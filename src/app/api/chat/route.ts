@@ -435,8 +435,14 @@ export async function POST(req: Request) {
       } finally {
         // Always close the writer when done
         try {
-          await writer.close();
-          console.log(`[${requestId}] Stream closed successfully`);
+          // Check if the stream is still writable before trying to close it
+          const writerState = writer.desiredSize !== null;
+          if (writerState) {
+            await writer.close();
+            console.log(`[${requestId}] Stream closed successfully`);
+          } else {
+            console.log(`[${requestId}] Stream already closed, skipping close operation`);
+          }
         } catch (closeError) {
           console.error(`[${requestId}] Error closing stream:`, closeError);
         }
