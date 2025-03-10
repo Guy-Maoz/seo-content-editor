@@ -607,9 +607,13 @@ export default function Home() {
   const handleResizeMove = useCallback((e: MouseEvent) => {
     if (!resizingRef.current) return;
     
-    // Calculate new width based on mouse movement (right-to-left)
-    const deltaX = startXRef.current - e.clientX;
-    const newWidth = Math.max(250, Math.min(800, startWidthRef.current + deltaX));
+    // Calculate the width based on position from right edge of the screen
+    const windowWidth = window.innerWidth;
+    const containerWidth = document.querySelector('main')?.clientWidth || windowWidth;
+    const positionFromRight = containerWidth - e.clientX;
+    
+    // Apply constraints
+    const newWidth = Math.max(200, Math.min(800, positionFromRight));
     
     setPanelWidth(newWidth);
   }, []);
@@ -667,11 +671,13 @@ export default function Home() {
   }
 
   return (
-    <main className="container mx-auto px-4 py-8 relative flex">
-      {/* Main content area */}
+    <main className="container mx-auto px-4 py-8 relative flex h-screen">
+      {/* Main content area with precise dimensions */}
       <div 
-        className={`flex-grow transition-all duration-300`}
-        style={{ marginRight: isSidePanelVisible ? `${panelWidth}px` : '0' }}
+        className={`transition-all duration-300`}
+        style={{ 
+          width: isSidePanelVisible ? `calc(100% - ${panelWidth}px)` : '100%'
+        }}
       >
         <h1 className="text-3xl font-bold mb-8 text-center">AI-Powered SEO Content Editor</h1>
         
@@ -709,17 +715,16 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Resize handle - position properly on the left edge of the panel */}
+      {/* Resize handle - positioned exactly at the boundary */}
       {isSidePanelVisible && (
         <div 
-          className={`fixed top-0 bottom-0 w-4 cursor-col-resize z-30 ${isResizing ? 'opacity-50 bg-blue-200' : ''}`}
+          className={`absolute top-0 bottom-0 w-1 cursor-col-resize z-30 ${isResizing ? 'opacity-100 bg-blue-400' : ''}`}
           style={{ 
-            right: `${panelWidth}px`, 
-            transform: 'translateX(-50%)' 
+            left: `calc(100% - ${panelWidth}px - 1px)`,
           }}
           onMouseDown={handleResizeStart}
         >
-          <div className="absolute left-1/2 top-0 bottom-0 w-1 bg-blue-400 opacity-0 hover:opacity-100 transition-opacity" />
+          <div className="absolute inset-0 w-full bg-blue-400 opacity-0 hover:opacity-100 transition-opacity" />
         </div>
       )}
       
@@ -735,12 +740,14 @@ export default function Home() {
         <FiChevronLeft className="h-5 w-5" />
       </button>
 
-      {/* AI Assistant side panel */}
+      {/* AI Assistant side panel - positioned directly next to main content */}
       <div
-        className={`fixed top-0 right-0 bottom-0 overflow-hidden bg-white border-l border-gray-200 shadow-lg transform transition-transform duration-300 ease-in-out z-20 ${
+        className={`absolute top-0 right-0 bottom-0 h-full overflow-hidden bg-white border-l border-gray-200 shadow-lg transform transition-transform duration-300 ease-in-out z-20 ${
           isSidePanelVisible ? 'translate-x-0' : 'translate-x-full'
         } flex flex-col`}
-        style={{ width: `${panelWidth}px` }}
+        style={{ 
+          width: `${panelWidth}px`,
+        }}
       >
         {/* Panel header */}
         <div className="flex justify-between items-center p-4 border-b border-gray-200">
