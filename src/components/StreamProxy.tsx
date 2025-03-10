@@ -94,10 +94,7 @@ export default function useStreamProxy(apiEndpoint: string) {
               const parts = partialChunk.split('\n');
               for (const part of parts) {
                 if (part.trim()) {
-                  const [type, content] = part.split(':', 2);
-                  if (type && content) {
-                    onData({ type, content: JSON.parse(content) });
-                  }
+                  processStreamPart(part, onData);
                 }
               }
             } catch (e) {
@@ -121,10 +118,7 @@ export default function useStreamProxy(apiEndpoint: string) {
         for (const part of parts) {
           if (part.trim()) {
             try {
-              const [type, content] = part.split(':', 2);
-              if (type && content) {
-                onData({ type, content: JSON.parse(content) });
-              }
+              processStreamPart(part, onData);
             } catch (e) {
               console.warn('Error processing chunk:', e);
             }
@@ -145,6 +139,28 @@ export default function useStreamProxy(apiEndpoint: string) {
       cleanup();
     }
   }, [apiEndpoint, cleanup, isStreaming]);
+  
+  // Helper function to process each part of the stream correctly
+  const processStreamPart = (part: string, onData: (data: any) => void) => {
+    const [type, content] = part.split(':', 2);
+    
+    if (!type || content === undefined) return; // Skip malformed parts
+    
+    // Different handling based on chunk type
+    if (type === '0') {
+      // Type 0 is raw text, not JSON
+      onData({ type, content });
+    } else {
+      // Other types (f, t, r, d) contain JSON
+      try {
+        onData({ type, content: JSON.parse(content) });
+      } catch (e) {
+        console.warn(`JSON parse error for type ${type}:`, e);
+        // For non-text chunks, still try to deliver the content as-is if JSON parsing fails
+        onData({ type, content, parseError: true });
+      }
+    }
+  };
   
   return {
     streamRequest,

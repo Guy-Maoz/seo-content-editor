@@ -115,32 +115,50 @@ Just type your question or select a task to get started!`,
           setCurrentResponse(prev => prev + data.content);
         } else if (data.type === 't') {
           // Tool call - log it
-          completeOperation(operationId, `Using tool: ${data.content.function.name}`);
-          addOperation({
-            type: 'info',
-            status: 'in-progress',
-            message: `Using ${data.content.function.name}`,
-            detail: `Looking up data for ${JSON.parse(data.content.function.arguments).keyword}`,
-            progress: 40,
-          });
+          try {
+            completeOperation(operationId, `Using tool: ${data.content.function.name}`);
+            // Check for parse error flag added by StreamProxy
+            if (!data.parseError) {
+              addOperation({
+                type: 'info',
+                status: 'in-progress',
+                message: `Using ${data.content.function.name}`,
+                detail: `Looking up data for ${JSON.parse(data.content.function.arguments).keyword}`,
+                progress: 40,
+              });
+            }
+          } catch (e) {
+            console.warn('Error handling tool call:', e);
+          }
         } else if (data.type === 'r') {
           // Tool result - log it
-          const result = data.content.result;
-          if (result && result.keyword) {
-            addOperation({
-              type: 'info',
-              status: 'completed',
-              message: `Found keyword data`,
-              detail: `${result.keyword}: volume=${result.volume}, difficulty=${result.difficulty}, CPC=$${result.cpc}`,
-            });
+          try {
+            const result = data.content.result;
+            if (result && result.keyword) {
+              addOperation({
+                type: 'info',
+                status: 'completed',
+                message: `Found keyword data`,
+                detail: `${result.keyword}: volume=${result.volume}, difficulty=${result.difficulty}, CPC=$${result.cpc}`,
+              });
+            }
+          } catch (e) {
+            console.warn('Error handling tool result:', e);
           }
         } else if (data.type === 'd') {
           // Completion or error
-          completeOperation(operationId, 
-            data.content.finishReason === 'stop' 
-              ? 'Response completed successfully' 
-              : `Response ended: ${data.content.finishReason}`
-          );
+          try {
+            // Check for parse error flag added by StreamProxy
+            if (!data.parseError) {
+              completeOperation(operationId, 
+                data.content.finishReason === 'stop' 
+                  ? 'Response completed successfully' 
+                  : `Response ended: ${data.content.finishReason}`
+              );
+            }
+          } catch (e) {
+            console.warn('Error handling completion data:', e);
+          }
         }
       },
       (error) => {
