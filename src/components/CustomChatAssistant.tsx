@@ -111,8 +111,12 @@ Just type your question or select a task to get started!`,
       (data) => {
         // Handle incoming stream data
         if (data.type === '0') {
-          // Text content
-          setCurrentResponse(prev => prev + data.content);
+          // Text content - Clean up the content by removing excessive quotes
+          // The content should be raw text, but checking to ensure it's a string
+          let cleanContent = typeof data.content === 'string' ? data.content : String(data.content);
+          
+          // We don't need additional cleanup here - just append the raw text
+          setCurrentResponse(prev => prev + cleanContent);
         } else if (data.type === 't') {
           // Tool call - log it
           try {
@@ -223,12 +227,17 @@ Just type your question or select a task to get started!`,
       () => {
         // Handle stream completion
         if (currentResponse) {
+          // Clean the response before adding it to messages
+          const cleanedResponse = currentResponse
+            .replace(/^"|"$/g, '')  // Remove leading/trailing quotes
+            .replace(/\\"/g, '"');   // Replace escaped quotes with regular quotes
+          
           setMessages(prev => [
             ...prev, 
             { 
               id: `assistant-${Date.now()}`, 
               role: 'assistant', 
-              content: currentResponse 
+              content: cleanedResponse
             }
           ]);
           setCurrentResponse('');
@@ -280,7 +289,12 @@ Just type your question or select a task to get started!`,
                     : 'bg-gray-100 text-gray-900'
                 }`}
               >
-                <div className="whitespace-pre-wrap">{message.content}</div>
+                <div className="whitespace-pre-wrap">
+                  {message.role === 'assistant' 
+                    ? message.content.replace(/\\"/g, '"').replace(/\\"([^"]+)\\"/, '"$1"') 
+                    : message.content
+                  }
+                </div>
               </div>
             </div>
           ))}

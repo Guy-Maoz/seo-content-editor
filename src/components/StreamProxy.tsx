@@ -155,7 +155,21 @@ export default function useStreamProxy(apiEndpoint: string) {
     // Different handling based on chunk type
     if (type === '0') {
       // Type 0 is plain text, not JSON
-      onData({ type, content });
+      // Clean up any quotation marks in the raw text
+      let cleanText = content;
+      
+      // If the content appears to be a JSON string with escaped quotes, clean it up
+      if (content.startsWith('"') && content.endsWith('"')) {
+        try {
+          // Try to parse and clean if it's a JSON string
+          cleanText = JSON.parse(content);
+        } catch (e) {
+          // If it's not valid JSON, just use the original
+          cleanText = content;
+        }
+      }
+      
+      onData({ type, content: cleanText });
     } else {
       // Other types (f, t, r, d) contain JSON
       try {
