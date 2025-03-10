@@ -16,8 +16,12 @@ const SIMILARWEB_BASE_URL = 'https://api.similarweb.com/v4';
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 exports.handler = async function(event, context) {
+  // Log every request to help debug
+  console.log('📥 Keywords function called with payload:', event.body);
+
   // Only allow POST requests
   if (event.httpMethod !== "POST") {
+    console.log('❌ Method not allowed:', event.httpMethod);
     return {
       statusCode: 405,
       body: JSON.stringify({ error: "Method not allowed" }),
@@ -29,10 +33,35 @@ exports.handler = async function(event, context) {
   }
 
   try {
-    // Parse request body
-    const { topic, count = 10, threadId } = JSON.parse(event.body);
+    // Parse request body with better error handling
+    let requestData;
+    try {
+      if (typeof event.body === 'string') {
+        requestData = JSON.parse(event.body);
+        console.log('✅ Successfully parsed request body:', JSON.stringify(requestData));
+      } else if (typeof event.body === 'object') {
+        requestData = event.body;
+        console.log('✅ Request body is already an object:', JSON.stringify(requestData));
+      } else {
+        throw new Error(`Invalid body type: ${typeof event.body}`);
+      }
+    } catch (parseError) {
+      console.error('❌ Error parsing request body:', parseError, 'Raw body:', event.body);
+      return {
+        statusCode: 400,
+        body: JSON.stringify({ 
+          error: "Invalid JSON in request body", 
+          details: parseError.message,
+          receivedBody: typeof event.body === 'string' ? event.body.substring(0, 100) + '...' : typeof event.body
+        }),
+        headers: { "Content-Type": "application/json" }
+      };
+    }
+
+    const { topic, count = 10, threadId } = requestData || {};
 
     if (!topic) {
+      console.log('❌ Missing topic in request');
       return {
         statusCode: 400,
         body: JSON.stringify({ error: "Topic is required" }),
@@ -40,10 +69,14 @@ exports.handler = async function(event, context) {
       };
     }
 
+    console.log(`🔍 Processing keywords request for topic: "${topic}"`);
+
     // Step 1: Generate keywords using OpenAI
+    console.log('🤖 Calling OpenAI API for keyword suggestions...');
     const keywordsFromOpenAI = await generateKeywordsWithOpenAI(topic);
     
     if (!keywordsFromOpenAI || !keywordsFromOpenAI.keywords || keywordsFromOpenAI.keywords.length === 0) {
+      console.log('❌ Failed to generate keywords from OpenAI');
       return {
         statusCode: 500,
         body: JSON.stringify({ error: "Failed to generate keywords" }),
@@ -51,18 +84,23 @@ exports.handler = async function(event, context) {
       };
     }
 
+    console.log(`✅ Successfully generated ${keywordsFromOpenAI.keywords.length} keywords from OpenAI`);
+
     // Step 2: Try to enrich keywords with SimilarWeb metrics
     try {
-      console.log(`Enriching ${keywordsFromOpenAI.keywords.length} keywords with SimilarWeb data`);
+      console.log(`🔍 Enriching ${keywordsFromOpenAI.keywords.length} keywords with SimilarWeb data`);
       const enrichedKeywords = await enrichKeywordsWithSimilarWeb(keywordsFromOpenAI.keywords);
+      console.log('✅ Successfully enriched keywords with SimilarWeb data');
+      
       return {
         statusCode: 200,
         body: JSON.stringify({ keywords: enrichedKeywords }),
         headers: { "Content-Type": "application/json" }
       };
     } catch (similarWebError) {
-      console.error('Error enriching keywords with SimilarWeb:', similarWebError);
+      console.error('⚠️ Error enriching keywords with SimilarWeb:', similarWebError);
       // If SimilarWeb enrichment fails, return the OpenAI keywords as is
+      console.log('Falling back to OpenAI keyword data without SimilarWeb metrics');
       return {
         statusCode: 200,
         body: JSON.stringify(keywordsFromOpenAI),
@@ -70,10 +108,14 @@ exports.handler = async function(event, context) {
       };
     }
   } catch (error) {
-    console.error('Error in keywords function:', error);
+    console.error('❌ Unhandled error in keywords function:', error);
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: "Failed to generate keywords", details: error.message }),
+      body: JSON.stringify({ 
+        error: "Failed to generate keywords", 
+        details: error.message,
+        stack: error.stack
+      }),
       headers: { "Content-Type": "application/json" }
     };
   }

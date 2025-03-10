@@ -6,8 +6,12 @@ if (!SIMILARWEB_API_KEY) {
 const SIMILARWEB_BASE_URL = 'https://api.similarweb.com/v4';
 
 exports.handler = async function(event, context) {
+  // Log every request to help debug
+  console.log('📥 Keywords-single function called with payload:', event.body);
+
   // Only allow POST requests
   if (event.httpMethod !== "POST") {
+    console.log('❌ Method not allowed:', event.httpMethod);
     return {
       statusCode: 405,
       body: JSON.stringify({ error: "Method not allowed" }),
@@ -26,17 +30,29 @@ exports.handler = async function(event, context) {
       const requestText = event.body;
       console.log('Raw request body:', requestText);
       
-      // Try to parse if not empty
-      if (requestText && requestText.trim()) {
-        requestData = JSON.parse(requestText);
+      // Better parsing logic for different body types
+      if (typeof requestText === 'string') {
+        if (requestText && requestText.trim()) {
+          requestData = JSON.parse(requestText);
+          console.log('✅ Successfully parsed request body:', JSON.stringify(requestData));
+        } else {
+          throw new Error('Empty request body');
+        }
+      } else if (typeof requestText === 'object') {
+        requestData = requestText;
+        console.log('✅ Request body is already an object:', JSON.stringify(requestData));
       } else {
-        throw new Error('Empty request body');
+        throw new Error(`Invalid body type: ${typeof requestText}`);
       }
     } catch (parseError) {
-      console.error('Error parsing request body:', parseError);
+      console.error('❌ Error parsing request body:', parseError, 'Raw body:', event.body);
       return {
         statusCode: 400,
-        body: JSON.stringify({ error: "Invalid JSON in request body", details: parseError.message }),
+        body: JSON.stringify({ 
+          error: "Invalid JSON in request body", 
+          details: parseError.message,
+          receivedBody: typeof event.body === 'string' ? event.body.substring(0, 100) + '...' : typeof event.body
+        }),
         headers: { "Content-Type": "application/json" }
       };
     }
@@ -44,6 +60,7 @@ exports.handler = async function(event, context) {
     const { keyword } = requestData || {};
 
     if (!keyword) {
+      console.log('❌ Missing keyword in request');
       return {
         statusCode: 400,
         body: JSON.stringify({ error: "Keyword is required" }),
@@ -78,10 +95,14 @@ exports.handler = async function(event, context) {
       headers: { "Content-Type": "application/json" }
     };
   } catch (error) {
-    console.error('Error fetching keyword metrics:', error);
+    console.error('❌ Unhandled error in keywords-single function:', error);
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: "Failed to fetch keyword metrics", details: error.message }),
+      body: JSON.stringify({ 
+        error: "Failed to fetch keyword metrics", 
+        details: error.message,
+        stack: error.stack
+      }),
       headers: { "Content-Type": "application/json" }
     };
   }

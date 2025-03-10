@@ -69,6 +69,19 @@
 # Remove the problematic redirects that are interfering with Next.js asset loading
 # and replace with standard Next.js handling
 
+# API redirects for keywords
+[[redirects]]
+  from = "/api/keywords"
+  to = "/.netlify/functions/keywords"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/keywords/single"
+  to = "/.netlify/functions/keywords-single"
+  status = 200
+  force = true
+
 # Default SPA fallback for client-side routing
 [[redirects]]
   from = "/*"

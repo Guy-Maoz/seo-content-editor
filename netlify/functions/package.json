@@ -1,0 +1,9 @@
+{
+  "name": "netlify-functions",
+  "version": "1.0.0",
+  "description": "Netlify serverless functions for the SEO Content Editor",
+  "dependencies": {
+    "openai": "^4.29.0",
+    "node-fetch": "^3.3.2"
+  }
+} 
