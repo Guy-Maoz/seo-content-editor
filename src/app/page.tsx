@@ -5,7 +5,7 @@ import TopicInput from '@/components/topic-input';
 import KeywordBank from '@/components/keyword-bank';
 import ContentEditor from '@/components/content-editor';
 import AIPanel from '@/components/AIPanel';
-import ChatAssistant from '@/components/ChatAssistant';
+import CustomChatAssistant from '@/components/CustomChatAssistant';
 import { Keyword } from '@/types/keyword';
 import { FiInfo, FiChevronLeft, FiChevronRight } from 'react-icons/fi';
 import Link from 'next/link';
@@ -657,11 +657,9 @@ export default function Home() {
           <p className="text-sm text-gray-600 mt-1">Ask questions or request SEO assistance</p>
         </div>
         
-        {/* Middle scrollable content - ChatAssistant */}
+        {/* Middle scrollable content - CustomChatAssistant */}
         <div className="p-4 flex-1 overflow-hidden">
-          <ChatAssistant 
-            isExpanded={isTransparencyPanelExpanded}
-          />
+          <CustomChatAssistant />
         </div>
           
         {/* Developer Tools - Fixed to bottom */}
