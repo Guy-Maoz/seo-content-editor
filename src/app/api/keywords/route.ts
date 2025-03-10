@@ -13,7 +13,10 @@ const openai = new OpenAI({
 });
 
 // SimilarWeb API configuration
-const SIMILARWEB_API_KEY = process.env.SIMILARWEB_API_KEY || 'd14923977f194036a9c41c5d924fd9ec';
+const SIMILARWEB_API_KEY = process.env.SIMILARWEB_API_KEY;
+if (!SIMILARWEB_API_KEY) {
+  console.error('SIMILARWEB_API_KEY environment variable is not set');
+}
 const SIMILARWEB_BASE_URL = 'https://api.similarweb.com/v4';
 
 export async function POST(request: Request) {

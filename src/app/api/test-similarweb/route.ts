@@ -7,7 +7,10 @@ export const revalidate = false;
 
 
 // SimilarWeb API configuration
-const SIMILARWEB_API_KEY = process.env.SIMILARWEB_API_KEY || 'd14923977f194036a9c41c5d924fd9ec';
+const SIMILARWEB_API_KEY = process.env.SIMILARWEB_API_KEY;
+if (!SIMILARWEB_API_KEY) {
+  console.error('SIMILARWEB_API_KEY environment variable is not set');
+}
 const SIMILARWEB_BASE_URL = 'https://api.similarweb.com/v4';
 
 export async function GET(request: Request) {
@@ -17,7 +20,7 @@ export async function GET(request: Request) {
     const keyword = searchParams.get('keyword') || 'digital marketing';
     
     // Log the API key (first few characters for security)
-    const apiKeyPrefix = SIMILARWEB_API_KEY.substring(0, 5) + '...';
+    const apiKeyPrefix = SIMILARWEB_API_KEY ? SIMILARWEB_API_KEY.substring(0, 5) + '...' : 'NOT_SET';
     console.log(`Using SimilarWeb API key: ${apiKeyPrefix}`);
     
     // Format the keyword for the URL
@@ -41,7 +44,7 @@ export async function GET(request: Request) {
         status: response.status,
         statusText: response.statusText,
         error: errorText,
-        url: url.replace(SIMILARWEB_API_KEY, '***'),
+        url: SIMILARWEB_API_KEY ? url.replace(SIMILARWEB_API_KEY, '***') : url,
       }, { status: response.status });
     }
     
