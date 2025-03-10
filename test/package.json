@@ -1,0 +1,10 @@
+{
+  "name": "streaming-test",
+  "version": "1.0.0",
+  "description": "Testing script for chat API streaming",
+  "type": "module",
+  "main": "test-streaming.js",
+  "dependencies": {
+    "node-fetch": "^3.3.2"
+  }
+} 
