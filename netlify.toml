@@ -7,6 +7,8 @@
   NETLIFY_NEXT_PLUGIN_SKIP = "true"
   NODE_VERSION = "20.11.1"
   NPM_VERSION = "10.2.4"
+  # Note: API keys should be set in the Netlify UI Environment Variables section
+  # OPENAI_API_KEY and SIMILARWEB_API_KEY must be set there
 
 # Set longer timeout for all functions
 [functions]

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
-// Add these exports to make the route compatible with static export
-export const dynamic = 'force-static';
+// Change static to dynamic for API routes
+export const dynamic = 'force-dynamic';
 export const revalidate = false;
 
 
@@ -24,7 +24,28 @@ const SIMILARWEB_BASE_URL = 'https://api.similarweb.com/v4';
 
 export async function POST(request: Request) {
   try {
-    const { keyword } = await request.json();
+    // Add more robust request body handling
+    let requestData;
+    try {
+      // Log the raw request to help debug
+      const requestText = await request.text();
+      console.log('Raw request body:', requestText);
+      
+      // Try to parse if not empty
+      if (requestText && requestText.trim()) {
+        requestData = JSON.parse(requestText);
+      } else {
+        throw new Error('Empty request body');
+      }
+    } catch (parseError) {
+      console.error('Error parsing request body:', parseError);
+      return NextResponse.json(
+        { error: 'Invalid JSON in request body', details: parseError.message },
+        { status: 400 }
+      );
+    }
+    
+    const { keyword } = requestData || {};
 
     if (!keyword) {
       return NextResponse.json(
@@ -65,7 +86,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error('Error fetching keyword metrics:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch keyword metrics' },
+      { error: 'Failed to fetch keyword metrics', details: error.message },
       { status: 500 }
     );
   }

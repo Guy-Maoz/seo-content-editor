@@ -1,11 +1,9 @@
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
 
-// Add these exports to make the route compatible with static export
-export const dynamic = 'force-static';
+// Change from static to dynamic to ensure proper API functionality
+export const dynamic = 'force-dynamic';
 export const revalidate = false;
-
-
 
 // Initialize OpenAI client
 const openai = new OpenAI({
