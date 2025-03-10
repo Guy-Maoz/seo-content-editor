@@ -17,7 +17,6 @@ interface CustomChatAssistantProps {
 }
 
 const CustomChatAssistant: React.FC<CustomChatAssistantProps> = ({ isExpanded = true }) => {
-  console.log('[CustomChatAssistant] Component rendering');
   const [isLoading, setIsLoading] = useState(true);
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -52,24 +51,20 @@ Just type your question or select a task to get started!`,
   // Wait for thread to be initialized
   useEffect(() => {
     if (threadId && isThreadInitialized) {
-      console.log('[CustomChatAssistant] Thread is initialized, setting isLoading=false');
       setIsLoading(false);
     } else {
-      console.log('[CustomChatAssistant] Still waiting for thread initialization');
     }
   }, [threadId, isThreadInitialized]);
   
   // Log operations when starting a chat
   useEffect(() => {
     if (threadId) {
-      console.log('[CustomChatAssistant] Adding chat initialization operation');
       const operationId = addOperation({
         type: 'info',
         status: 'completed',
         message: 'Chat session initialized',
         detail: `Using thread: ${threadId}`,
       });
-      console.log('[CustomChatAssistant] Operation added:', operationId);
     }
   }, [threadId, addOperation]);
   
@@ -122,7 +117,6 @@ Just type your question or select a task to get started!`,
           try {
             if (data.parseError) {
               // Handle unparsed tool call data
-              console.log('Tool call received but could not be parsed');
               addOperation({
                 type: 'info',
                 status: 'in-progress',
@@ -168,7 +162,6 @@ Just type your question or select a task to get started!`,
           try {
             if (data.parseError) {
               // Handle unparsed tool result
-              console.log('Tool result received but could not be parsed');
               addOperation({
                 type: 'info',
                 status: 'completed',
@@ -201,7 +194,6 @@ Just type your question or select a task to get started!`,
           try {
             if (data.parseError) {
               // Handle unparsed completion data
-              console.log('Completion data received but could not be parsed');
               completeOperation(operationId, 'Response completed');
             } else if (data.content) {
               completeOperation(operationId, 

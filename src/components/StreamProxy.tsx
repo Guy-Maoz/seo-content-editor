@@ -53,7 +53,9 @@ export default function useStreamProxy(apiEndpoint: string) {
             method: 'GET',
             cache: 'no-store',
             keepalive: true
-          }).catch(e => console.log('Ping error (non-critical):', e)); 
+          }).catch(e => {
+            // Remove non-critical ping error log
+          }); 
         }
       }, 20000); // Send ping every 20 seconds
       
@@ -120,7 +122,8 @@ export default function useStreamProxy(apiEndpoint: string) {
             try {
               processStreamPart(part, onData);
             } catch (e) {
-              console.warn('Error processing chunk:', e);
+              // Keep essential error logging but make it quieter
+              console.debug('Error processing chunk:', e);
             }
           }
         }
@@ -129,8 +132,9 @@ export default function useStreamProxy(apiEndpoint: string) {
       onComplete();
     } catch (err: any) {
       if (err.name === 'AbortError') {
-        console.log('Stream aborted');
+        // Remove console log for aborted stream
       } else {
+        // Keep critical error logging
         console.error('Stream error:', err);
         setError(err.message || 'Unknown error');
         onError(err);
@@ -177,7 +181,7 @@ export default function useStreamProxy(apiEndpoint: string) {
         const parsedContent = JSON.parse(content);
         onData({ type, content: parsedContent });
       } catch (e) {
-        console.warn(`JSON parse error for type ${type}:`, e);
+        console.debug(`JSON parse error for type ${type}:`, e);
         // Still try to deliver the raw content
         onData({ type, content, parseError: true });
       }
