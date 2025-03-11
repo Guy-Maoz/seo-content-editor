@@ -13,49 +13,27 @@ const SafeHTML = ({ html }: { html: string }) => {
     .replace(/\\"/g, '"')
     .replace(/\\"([^"]+)\\"/, '"$1"');
 
-  // Check if there are HTML entities that need to be decoded
-  const hasHtmlEntities = cleanHtml.includes('&lt;') || cleanHtml.includes('&gt;');
-  
-  // Check if there are visible HTML tags
-  const hasVisibleTags = cleanHtml.includes('<strong>') || cleanHtml.includes('</strong>');
-  
-  // If we have any kind of HTML to process, handle it
-  if (hasHtmlEntities || hasVisibleTags) {
-    // Process the content to handle all HTML scenarios
-    let processedHtml = cleanHtml;
+  // Create a safer way to render HTML content
+  function createMarkup() {
+    // Handle HTML entities that need to be decoded
+    let processedHtml = cleanHtml
+      .replace(/&lt;strong&gt;/g, '<strong>')
+      .replace(/&lt;\/strong&gt;/g, '</strong>')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      // Handle literal HTML tags that need to be preserved
+      .replace(/<strong>/g, '<strong>')
+      .replace(/<\/strong>/g, '</strong>');
     
-    // Replace HTML entities with actual tags
-    if (hasHtmlEntities) {
-      processedHtml = processedHtml
-        .replace(/&lt;strong&gt;/g, '<strong>')
-        .replace(/&lt;\/strong&gt;/g, '</strong>')
-        .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>');
-    }
-    
-    // Handle the specific case in the screenshot (literal <strong> tags)
-    if (hasVisibleTags) {
-      // First, temporarily replace them with markers to avoid conflicts
-      processedHtml = processedHtml
-        .replace(/<strong>/g, '___STRONG_START___')
-        .replace(/<\/strong>/g, '___STRONG_END___');
-      
-      // Then convert back to actual HTML tags
-      processedHtml = processedHtml
-        .replace(/___STRONG_START___/g, '<strong>')
-        .replace(/___STRONG_END___/g, '</strong>');
-    }
-    
-    return (
-      <div 
-        className="prose max-w-none" 
-        dangerouslySetInnerHTML={{ __html: processedHtml }} 
-      />
-    );
+    return { __html: processedHtml };
   }
   
-  // If no HTML to process, just render as plain text
-  return <div className="whitespace-pre-wrap">{cleanHtml}</div>;
+  return (
+    <div 
+      className="prose max-w-none" 
+      dangerouslySetInnerHTML={createMarkup()} 
+    />
+  );
 };
 
 interface Message {
@@ -162,8 +140,12 @@ Just type your question or select a task to get started!`,
           // The content should be raw text, but checking to ensure it's a string
           let cleanContent = typeof data.content === 'string' ? data.content : String(data.content);
           
-          // We don't need additional cleanup here - just append the raw text
-          setCurrentResponse(prev => prev + cleanContent);
+          // Update current response with a callback to ensure we're using the latest state
+          setCurrentResponse(prevResponse => {
+            // Store updated response in a variable to use for logging
+            const newResponse = prevResponse + cleanContent;
+            return newResponse;
+          });
         } else if (data.type === 't') {
           // Tool call - log it
           try {
@@ -222,12 +204,27 @@ Just type your question or select a task to get started!`,
               });
             } else if (data.content && data.content.result) {
               const result = data.content.result;
+              
+              // Check for valid keyword data and gracefully handle missing values
               if (result.keyword) {
+                // Create a more informative message that handles missing data gracefully
+                const volumeText = result.volume !== undefined && result.volume !== null 
+                  ? result.volume.toLocaleString() 
+                  : 'N/A';
+                  
+                const difficultyText = result.difficulty !== undefined && result.difficulty !== null
+                  ? result.difficulty
+                  : 'N/A';
+                  
+                const cpcText = result.cpc !== undefined && result.cpc !== null
+                  ? `$${result.cpc}`
+                  : 'N/A';
+                
                 addOperation({
                   type: 'info',
                   status: 'completed',
                   message: `Found keyword data`,
-                  detail: `${result.keyword}: volume=${result.volume || 'N/A'}, difficulty=${result.difficulty || 'N/A'}, CPC=$${result.cpc || 'N/A'}`,
+                  detail: `${result.keyword}: volume=${volumeText}, difficulty=${difficultyText}, CPC=${cpcText}`,
                 });
               } else {
                 addOperation({
@@ -240,6 +237,13 @@ Just type your question or select a task to get started!`,
             }
           } catch (e) {
             console.warn('Error handling tool result:', e);
+            // Add a fallback operation for tool result errors
+            addOperation({
+              type: 'info',
+              status: 'completed',
+              message: 'Data partially processed',
+              detail: 'Some information may be incomplete',
+            });
           }
         } else if (data.type === 'd') {
           // Completion or error
@@ -276,10 +280,11 @@ Just type your question or select a task to get started!`,
             .replace(/^"|"$/g, '')  // Remove leading/trailing quotes
             .replace(/\\"/g, '"');   // Replace escaped quotes with regular quotes
           
-          setMessages(prev => [
-            ...prev, 
+          // Use a function update to ensure we're working with the latest state
+          setMessages(prevMessages => [
+            ...prevMessages, 
             { 
-              id: `assistant-${Date.now()}`, 
+              id: `assistant-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, 
               role: 'assistant', 
               content: cleanedResponse
             }
