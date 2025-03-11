@@ -6,6 +6,58 @@ import { useThreadContext } from '@/contexts/ThreadContext';
 import { useAITransparency } from '@/contexts/AITransparencyContext';
 import useStreamProxy from './StreamProxy';
 
+// Helper function to safely render HTML content
+const SafeHTML = ({ html }: { html: string }) => {
+  // First, clean up the content
+  const cleanHtml = html
+    .replace(/\\"/g, '"')
+    .replace(/\\"([^"]+)\\"/, '"$1"');
+
+  // Check if there are HTML entities that need to be decoded
+  const hasHtmlEntities = cleanHtml.includes('&lt;') || cleanHtml.includes('&gt;');
+  
+  // Check if there are visible HTML tags
+  const hasVisibleTags = cleanHtml.includes('<strong>') || cleanHtml.includes('</strong>');
+  
+  // If we have any kind of HTML to process, handle it
+  if (hasHtmlEntities || hasVisibleTags) {
+    // Process the content to handle all HTML scenarios
+    let processedHtml = cleanHtml;
+    
+    // Replace HTML entities with actual tags
+    if (hasHtmlEntities) {
+      processedHtml = processedHtml
+        .replace(/&lt;strong&gt;/g, '<strong>')
+        .replace(/&lt;\/strong&gt;/g, '</strong>')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>');
+    }
+    
+    // Handle the specific case in the screenshot (literal <strong> tags)
+    if (hasVisibleTags) {
+      // First, temporarily replace them with markers to avoid conflicts
+      processedHtml = processedHtml
+        .replace(/<strong>/g, '___STRONG_START___')
+        .replace(/<\/strong>/g, '___STRONG_END___');
+      
+      // Then convert back to actual HTML tags
+      processedHtml = processedHtml
+        .replace(/___STRONG_START___/g, '<strong>')
+        .replace(/___STRONG_END___/g, '</strong>');
+    }
+    
+    return (
+      <div 
+        className="prose max-w-none" 
+        dangerouslySetInnerHTML={{ __html: processedHtml }} 
+      />
+    );
+  }
+  
+  // If no HTML to process, just render as plain text
+  return <div className="whitespace-pre-wrap">{cleanHtml}</div>;
+};
+
 interface Message {
   id: string;
   role: 'user' | 'assistant';
@@ -281,12 +333,11 @@ Just type your question or select a task to get started!`,
                     : 'bg-gray-100 text-gray-900'
                 }`}
               >
-                <div className="whitespace-pre-wrap">
-                  {message.role === 'assistant' 
-                    ? message.content.replace(/\\"/g, '"').replace(/\\"([^"]+)\\"/, '"$1"') 
-                    : message.content
-                  }
-                </div>
+                {message.role === 'assistant' ? (
+                  <SafeHTML html={message.content} />
+                ) : (
+                  <div className="whitespace-pre-wrap">{message.content}</div>
+                )}
               </div>
             </div>
           ))}
@@ -295,7 +346,7 @@ Just type your question or select a task to get started!`,
           {currentResponse && (
             <div className="flex justify-start">
               <div className="max-w-3/4 p-3 rounded-lg bg-gray-100 text-gray-900">
-                <div className="whitespace-pre-wrap">{currentResponse}</div>
+                <SafeHTML html={currentResponse} />
               </div>
             </div>
           )}
